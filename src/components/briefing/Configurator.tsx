@@ -203,7 +203,7 @@ export function Configurator() {
                 <Label className="mb-2 block text-xs text-muted-foreground">Cantos dos cards</Label>
                 <div className="grid grid-cols-3 gap-2">
                   {(["reto", "medio", "arredondado"] as const).map((c) => (
-                    <Chip key={c} active={s.aparencia.cantos === c} onClick={() => s.setAparencia({ cantos: c })}>{c === "medio" ? "Médio" : c[0].toUpperCase() + c.slice(1)}</Chip>
+                    <Chip key={c} active={s.aparencia.cantos === c} onClick={() => s.setAparencia({ cantos: c })}>{c === "medio" ? "Médio" : c.charAt(0).toUpperCase() + c.slice(1)}</Chip>
                   ))}
                 </div>
               </div>

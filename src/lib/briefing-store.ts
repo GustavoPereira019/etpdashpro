@@ -66,7 +66,7 @@ export const uid = () => `${Date.now().toString(36)}-${(counter++).toString(36)}
 
 export const novoVisual = (i: number): Visual => ({
   id: uid(),
-  tipo: DEFAULT_TIPOS[i % DEFAULT_TIPOS.length],
+  tipo: DEFAULT_TIPOS[i % DEFAULT_TIPOS.length] ?? "Linha",
   titulo: "",
   descricao: "",
   customHtml: "",
@@ -141,7 +141,7 @@ export const useBriefing = create<State>((set) => ({
     set((s) => {
       if (s.paginas.length <= 1) return s;
       const paginas = s.paginas.filter((p) => p.id !== id);
-      return { paginas, paginaAtiva: s.paginaAtiva === id ? paginas[0].id : s.paginaAtiva };
+      return { paginas, paginaAtiva: s.paginaAtiva === id ? paginas[0]!.id : s.paginaAtiva };
     }),
   setPaginaAtiva: (paginaAtiva) => set({ paginaAtiva }),
   updatePagina: (id, patch) => set((s) => ({ paginas: mapPagina(s.paginas, id, (p) => ({ ...p, ...patch })) })),

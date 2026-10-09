@@ -26,7 +26,7 @@ const PRESETS: { id: GridPreset; label: string }[] = [
 
 export function Configurator() {
   const s = useBriefing();
-  const pagina = s.paginas.find((p) => p.id === s.paginaAtiva) ?? s.paginas[0];
+  const pagina = s.paginas.find((p) => p.id === s.paginaAtiva) ?? s.paginas[0]!;
   const canvasRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.6);
@@ -68,7 +68,7 @@ export function Configurator() {
 
   const onLogo = (f?: File) => {
     if (!f) return;
-    if (f.size > 1_500_000) return toast.error("Logo deve ter até 1,5 MB.");
+    if (f.size > 1_500_000) { toast.error("Logo deve ter até 1,5 MB."); return; }
     const reader = new FileReader();
     reader.onload = () => s.setAparencia({ logo: reader.result as string });
     reader.readAsDataURL(f);

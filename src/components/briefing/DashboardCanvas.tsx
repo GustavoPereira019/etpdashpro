@@ -209,5 +209,11 @@ function ChartMock({ v, p, s, line, sub }: { v: Visual; p: string; s: string; li
           <span style={{ fontSize: 11, color: sub }}>Visual sob medida · HTML / Deneb / D3</span>
         </div>
       );
+    default:
+      return (
+        <div style={{ height: "100%", border: `1.5px dashed ${line}`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: sub }}>
+          {v.tipo.replace(/_/g, " ")}
+        </div>
+      );
   }
 }

@@ -123,9 +123,9 @@ function RootComponent() {
       <header className="sticky top-0 z-40 flex h-[57px] items-center justify-between border-b border-border bg-background/85 px-5 backdrop-blur">
         <Link to="/" className="flex items-center gap-2 font-display font-bold">
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground"><LayoutDashboard className="h-4 w-4" /></span>
-          Layout<span className="text-primary">Studio</span>
+          Dash<span className="text-primary">Pro</span>
         </Link>
-        <Link to="/admin" className="text-sm text-muted-foreground hover:text-foreground">Admin</Link>
+        <Link to="/admin" className="text-sm text-muted-foreground opacity-0 transition-opacity hover:opacity-100 hover:text-foreground">Admin</Link>
       </header>
       <Outlet />
       <Toaster />

@@ -30,6 +30,8 @@ export interface Contato {
   fontes: string[];
   volume: string;
   objetivo: string;
+  outraFonte: string;
+  arquivoExemplo: File | null;
 }
 
 export interface Aparencia {
@@ -107,7 +109,7 @@ interface State {
   reset: () => void;
 }
 
-const contatoInicial: Contato = { nome: "", email: "", empresa: "", telefone: "", fontes: [], volume: "", objetivo: "" };
+const contatoInicial: Contato = { nome: "", email: "", empresa: "", telefone: "", fontes: [], volume: "", objetivo: "", outraFonte: "", arquivoExemplo: null };
 const aparenciaInicial: Aparencia = {
   tema: "escuro",
   primaria: "#B4F04A",
@@ -120,7 +122,7 @@ const aparenciaInicial: Aparencia = {
 
 const inicial = () => {
   const p = novaPagina("Visão Geral");
-  return { etapa: 1 as const, contato: contatoInicial, resolucao: "padrao" as Resolucao, aparencia: aparenciaInicial, paginas: [p], paginaAtiva: p.id, observacoes: "" };
+  return { etapa: 1 as const, contato: { ...contatoInicial, fontes: [] }, aparencia: { ...aparenciaInicial }, resolucao: "padrao" as Resolucao, paginas: [p], paginaAtiva: p.id, observacoes: "" };
 };
 
 const mapPagina = (paginas: Pagina[], id: string, fn: (p: Pagina) => Pagina) => paginas.map((p) => (p.id === id ? fn(p) : p));

@@ -1,5 +1,5 @@
 import { ArrowRight, Database } from "lucide-react";
-import { useState } from "react";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,22 +11,27 @@ const FONTES = ["CSV", "Excel", "SQL Server", "PostgreSQL", "MySQL", "API REST",
 const VOLUMES = ["Até 100 mil linhas", "100 mil – 1 milhão", "1 – 10 milhões", "Mais de 10 milhões", "Não sei informar"];
 
 export function StepContact() {
-  const { contato, setContato, setEtapa } = useBriefing();
-  const [erro, setErro] = useState("");
+  const { contato, setContato, setEtapa, reset } = useBriefing();
+
+  useEffect(() => {
+    reset();
+  }, [reset]);
 
   const toggleFonte = (f: string) =>
     setContato({ fontes: contato.fontes.includes(f) ? contato.fontes.filter((x) => x !== f) : [...contato.fontes, f] });
 
+  const temOutro = contato.fontes.includes("Outro");
+  const valido =
+    contato.nome.trim().length > 0 &&
+    /^\S+@\S+\.\S+$/.test(contato.email) &&
+    contato.empresa.trim().length > 0 &&
+    /^\d{10,11}$/.test(contato.telefone) &&
+    contato.fontes.length > 0 &&
+    (!temOutro || contato.outraFonte.trim().length > 0) &&
+    contato.objetivo.trim().length >= 20;
+
   const avancar = () => {
-    if (!contato.nome.trim() || !/^\S+@\S+\.\S+$/.test(contato.email) || !contato.empresa.trim()) {
-      setErro("Preencha nome, e-mail válido e empresa.");
-      return;
-    }
-    if (contato.fontes.length === 0) {
-      setErro("Selecione ao menos uma fonte de dados.");
-      return;
-    }
-    setErro("");
+    if (!valido) return;
     setEtapa(2);
     window.scrollTo({ top: 0 });
   };
@@ -45,7 +50,7 @@ export function StepContact() {
           Conte sobre seu contexto e dados. Na próxima etapa você monta o layout visualmente — páginas, KPIs, gráficos e identidade — e envia para nossa análise técnica.
         </p>
         <ul className="space-y-3 text-sm text-muted-foreground">
-          {["Sem compromisso: você recebe uma proposta personalizada", "Exporte o layout em PNG ou especificação JSON", "Visuais sob medida alinhados em reunião técnica"].map((t) => (
+          {["Sem compromisso: você recebe uma proposta personalizada", "Exporte o layout em PNG", "Visuais sob medida alinhados em reunião técnica"].map((t) => (
             <li key={t} className="flex gap-3"><span className="mt-2 h-1 w-4 shrink-0 bg-primary" />{t}</li>
           ))}
         </ul>
@@ -53,10 +58,10 @@ export function StepContact() {
 
       <div className="space-y-6 rounded-2xl border border-border bg-card p-6 md:p-8">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Nome *"><Input value={contato.nome} onChange={(e) => setContato({ nome: e.target.value })} placeholder="Seu nome" /></Field>
-          <Field label="E-mail *"><Input type="email" value={contato.email} onChange={(e) => setContato({ email: e.target.value })} placeholder="voce@empresa.com" /></Field>
-          <Field label="Empresa *"><Input value={contato.empresa} onChange={(e) => setContato({ empresa: e.target.value })} placeholder="Nome da empresa" /></Field>
-          <Field label="WhatsApp"><Input value={contato.telefone} onChange={(e) => setContato({ telefone: e.target.value })} placeholder="(11) 99999-9999" /></Field>
+          <Field label="Nome *"><Input value={contato.nome} maxLength={50} onChange={(e) => setContato({ nome: e.target.value })} placeholder="Seu nome" /></Field>
+          <Field label="E-mail *"><Input type="email" value={contato.email} maxLength={100} onChange={(e) => setContato({ email: e.target.value })} placeholder="voce@empresa.com" /></Field>
+          <Field label="Empresa *"><Input value={contato.empresa} maxLength={50} onChange={(e) => setContato({ empresa: e.target.value })} placeholder="Nome da empresa" /></Field>
+          <Field label="WhatsApp"><Input inputMode="numeric" maxLength={11} value={contato.telefone} onChange={(e) => setContato({ telefone: e.target.value.replace(/\D/g, "").slice(0, 11) })} placeholder="11999999999" /></Field>
         </div>
 
         <div className="space-y-2">
@@ -76,6 +81,15 @@ export function StepContact() {
               </button>
             ))}
           </div>
+          {temOutro && (
+            <Input
+              autoFocus
+              maxLength={50}
+              value={contato.outraFonte}
+              onChange={(e) => setContato({ outraFonte: e.target.value })}
+              placeholder="Qual outra fonte de dados?"
+            />
+          )}
         </div>
 
         <div className="space-y-2">
@@ -97,12 +111,19 @@ export function StepContact() {
           </div>
         </div>
 
-        <Field label="Objetivo do dashboard">
-          <Textarea rows={3} value={contato.objetivo} onChange={(e) => setContato({ objetivo: e.target.value })} placeholder="Ex.: acompanhar vendas por região e margem por produto, para a diretoria comercial." />
+        <Field label="Deseja enviar um arquivo de exemplo com as colunas? (Opcional, ajuda no entendimento)">
+          <Input
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={(e) => setContato({ arquivoExemplo: e.target.files?.[0] ?? null })}
+          />
         </Field>
 
-        {erro && <p className="text-sm text-destructive">{erro}</p>}
-        <Button size="lg" className="w-full shadow-glow" onClick={avancar}>
+        <Field label="Objetivo do dashboard">
+          <Textarea rows={3} maxLength={200} value={contato.objetivo} onChange={(e) => setContato({ objetivo: e.target.value })} placeholder="Ex.: acompanhar vendas por região e margem por produto, para a diretoria comercial." />
+        </Field>
+
+        <Button size="lg" className="w-full shadow-glow" disabled={!valido} onClick={avancar}>
           Montar layout <ArrowRight />
         </Button>
       </div>

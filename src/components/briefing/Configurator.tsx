@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import {
-  ArrowLeft, CheckCircle2, Code2, FileJson, ImageDown, LayoutGrid, Monitor, Palette, Plus, Send, Trash2, Upload, X, Gauge,
+  ArrowLeft, CheckCircle2, Code2, Filter, ImageDown, Menu, LayoutGrid, Monitor, Palette, Plus, Send, Trash2, Upload, X, Gauge,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { RESOLUCOES, VISUAL_LABELS, useBriefing, type GridPreset, type Resolucao, type VisualTipo } from "@/lib/briefing-store";
-import { buildSpec, submitBriefing } from "@/lib/submit-briefing";
+import { MAX_PAGINAS, RESOLUCOES, VISUAL_LABELS, useBriefing, type GridPreset, type Resolucao, type VisualTipo } from "@/lib/briefing-store";
+import { submitBriefing } from "@/lib/submit-briefing";
 import { DashboardCanvas } from "./DashboardCanvas";
 
 const PRESETS: { id: GridPreset; label: string }[] = [
@@ -52,14 +52,12 @@ export function Configurator() {
       toast.error("Não foi possível gerar a imagem.");
     }
   };
-  const exportJson = () => {
-    const blob = new Blob([JSON.stringify(buildSpec(s), null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    download(url, `especificacao-dashboard.json`);
-    URL.revokeObjectURL(url);
-  };
+  const lim = RESOLUCOES[s.resolucao];
+  const obsOk = s.observacoes.trim().length >= 10;
+  const outrosOk = s.paginas.every((p) => p.visuais.every((v) => v.tipo !== "Outro" || v.outroTipo.trim().length > 0));
 
   const enviar = async () => {
+    if (!obsOk || !outrosOk) return;
     setEnviando(true);
     const r = await submitBriefing(s);
     setEnviando(false);
@@ -83,7 +81,7 @@ export function Configurator() {
           <span className="font-mono text-xs text-muted-foreground">Etapa 2 de 2</span>
         </div>
 
-        <Accordion type="multiple" defaultValue={["res", "pag", "kpi", "vis"]} className="px-5">
+        <Accordion type="multiple" defaultValue={["res", "pag", "menu", "fil", "kpi", "vis"]} className="px-5">
           <Section value="res" icon={Monitor} title="Dimensão do painel">
             <div className="grid grid-cols-3 gap-2">
               {(Object.keys(RESOLUCOES) as Resolucao[]).map((r) => (
@@ -114,13 +112,46 @@ export function Configurator() {
                 className="flex gap-2"
                 onSubmit={(e) => {
                   e.preventDefault();
+                  if (s.paginas.length >= MAX_PAGINAS) return;
                   s.addPagina(novaPag.trim() || `Página ${s.paginas.length + 1}`);
                   setNovaPag("");
                 }}
               >
-                <Input value={novaPag} onChange={(e) => setNovaPag(e.target.value)} placeholder="Ex.: Financeiro" className="h-9" />
-                <Button type="submit" size="sm" variant="secondary"><Plus /> Adicionar</Button>
+                <Input value={novaPag} maxLength={40} onChange={(e) => setNovaPag(e.target.value)} placeholder="Ex.: Financeiro" className="h-9" />
+                <Button type="submit" size="sm" variant="secondary" disabled={s.paginas.length >= MAX_PAGINAS}><Plus /> Adicionar</Button>
               </form>
+              <p className="text-xs text-muted-foreground">{s.paginas.length} de {MAX_PAGINAS} páginas</p>
+            </div>
+          </Section>
+
+          <Section value="menu" icon={Menu} title="Menu de páginas">
+            <div className="grid grid-cols-2 gap-2">
+              <Chip active={s.menuPosicao === "topo"} onClick={() => s.setMenuPosicao("topo")}>Topo</Chip>
+              <Chip active={s.menuPosicao === "lateral_direita"} onClick={() => s.setMenuPosicao("lateral_direita")}>Lateral direita</Chip>
+            </div>
+          </Section>
+
+          <Section value="fil" icon={Filter} title="Filtros">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="block text-xs text-muted-foreground">Quais filtros deseja?</Label>
+                <Textarea rows={2} maxLength={300} value={s.filtros.quais} onChange={(e) => s.setFiltros({ quais: e.target.value })} placeholder="Ex.: Período, Região, Vendedor, Produto" className="text-sm" />
+              </div>
+              <div>
+                <Label className="mb-2 block text-xs text-muted-foreground">Quantidade de filtros</Label>
+                <div className="grid grid-cols-6 gap-1.5">
+                  {[0, 1, 2, 3, 4, 5].map((n) => (
+                    <Chip key={n} active={s.filtros.quantidade === n} onClick={() => s.setFiltros({ quantidade: n })}>{n === 5 ? "5+" : n}</Chip>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label className="mb-2 block text-xs text-muted-foreground">Estilo dos filtros</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Chip active={s.filtros.estilo === "ocultos"} onClick={() => s.setFiltros({ estilo: "ocultos" })}>Ocultos num ícone</Chip>
+                  <Chip active={s.filtros.estilo === "exibidos"} onClick={() => s.setFiltros({ estilo: "exibidos" })}>Exibidos na tela</Chip>
+                </div>
+              </div>
             </div>
           </Section>
 
@@ -128,17 +159,19 @@ export function Configurator() {
             <div className="space-y-4">
               <div>
                 <Label className="mb-2 block text-xs text-muted-foreground">Quantidade</Label>
-                <div className="grid grid-cols-6 gap-1.5">
-                  {[0, 1, 2, 3, 4, 5].map((n) => (
+                <div className="grid grid-cols-7 gap-1.5">
+                  {Array.from({ length: lim.maxKpis + 1 }, (_, n) => n).map((n) => (
                     <Chip key={n} active={pagina.kpis.length === n} onClick={() => s.setQtdKpis(pagina.id, n)}>{n}</Chip>
                   ))}
                 </div>
               </div>
               <div>
                 <Label className="mb-2 block text-xs text-muted-foreground">Posição</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className={cn("grid gap-2", s.resolucao === "longo" ? "grid-cols-1" : "grid-cols-2")}>
                   <Chip active={pagina.posicaoCards === "topo"} onClick={() => s.updatePagina(pagina.id, { posicaoCards: "topo" })}>Topo</Chip>
-                  <Chip active={pagina.posicaoCards === "lateral"} onClick={() => s.updatePagina(pagina.id, { posicaoCards: "lateral" })}>Lateral</Chip>
+                  {s.resolucao !== "longo" && (
+                    <Chip active={pagina.posicaoCards === "lateral"} onClick={() => s.updatePagina(pagina.id, { posicaoCards: "lateral" })}>Lateral</Chip>
+                  )}
                 </div>
               </div>
               {pagina.kpis.map((k, i) => (
@@ -169,7 +202,14 @@ export function Configurator() {
                     </Button>
                   </div>
                   <Input value={v.titulo} onChange={(e) => s.updateVisual(pagina.id, v.id, { titulo: e.target.value })} placeholder="Título (ex.: Vendas por mês)" className="h-8" />
-                  <Textarea rows={2} value={v.descricao} onChange={(e) => s.updateVisual(pagina.id, v.id, { descricao: e.target.value })} placeholder="Informações / variáveis que devem constar" className="text-sm" />
+                  <Textarea rows={2} value={v.descricao} onChange={(e) => s.updateVisual(pagina.id, v.id, { descricao: e.target.value })} placeholder="Explique o que deve apresentar no gráfico" className="text-sm" />
+                  {v.tipo === "Outro" && (
+                    <Input value={v.outroTipo} maxLength={100} onChange={(e) => s.updateVisual(pagina.id, v.id, { outroTipo: e.target.value })} placeholder="Qual gráfico deseja? (obrigatório)" className="h-8" />
+                  )}
+                  <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-xs">
+                    <span>Deseja botões de alternância (clicar para trocar de gráfico no mesmo espaço)?</span>
+                    <Switch checked={v.alternancia} onCheckedChange={(b) => s.updateVisual(pagina.id, v.id, { alternancia: b })} />
+                  </label>
                   {v.tipo === "Custom_HTML" && (
                     <div className="space-y-2 rounded-lg border border-warning/40 bg-warning/10 p-3">
                       <p className="flex gap-2 text-xs text-warning"><Code2 className="h-4 w-4 shrink-0" />Visual customizado sob medida: descreva detalhadamente a lógica desejada. Este item será alinhado e refinado em reunião técnica.</p>
@@ -178,7 +218,7 @@ export function Configurator() {
                   )}
                 </div>
               ))}
-              <Button variant="secondary" size="sm" className="w-full" disabled={pagina.visuais.length >= 8} onClick={() => s.addVisual(pagina.id)}><Plus /> Adicionar visual</Button>
+              <Button variant="secondary" size="sm" className="w-full" disabled={pagina.visuais.length >= lim.maxVisuais} onClick={() => s.addVisual(pagina.id)}><Plus /> Adicionar visual ({pagina.visuais.length}/{lim.maxVisuais})</Button>
             </div>
           </Section>
 
@@ -223,9 +263,9 @@ export function Configurator() {
         </Accordion>
 
         <div className="space-y-3 border-t border-border p-5">
-          <Label>Observações técnicas</Label>
-          <Textarea rows={3} value={s.observacoes} onChange={(e) => s.setObservacoes(e.target.value)} placeholder="Integrações, prazos, segurança por linha, atualização…" />
-          <Button size="lg" className="w-full shadow-glow" disabled={enviando} onClick={enviar}>
+          <Label>Observações técnicas *</Label>
+          <Textarea rows={3} maxLength={500} value={s.observacoes} onChange={(e) => s.setObservacoes(e.target.value)} placeholder="Faltou alguma coisa? Deixe suas observações aqui..." />
+          <Button size="lg" className="w-full shadow-glow" disabled={enviando || !obsOk || !outrosOk} onClick={enviar}>
             <Send /> {enviando ? "Enviando…" : "Enviar para análise"}
           </Button>
         </div>
@@ -247,9 +287,8 @@ export function Configurator() {
           </div>
           <span className="hidden font-mono text-xs text-muted-foreground md:inline">{dim.w}×{dim.h} · {Math.round(scale * 100)}%</span>
           <Button variant="outline" size="sm" onClick={exportPng}><ImageDown /> PNG</Button>
-          <Button variant="outline" size="sm" onClick={exportJson}><FileJson /> JSON</Button>
         </div>
-        <div ref={wrapRef} className={cn("flex-1 p-6", s.resolucao === "scroll" ? "max-h-[calc(100vh-110px)] overflow-y-auto" : "overflow-hidden")}>
+        <div ref={wrapRef} className={cn("flex-1 p-6", s.resolucao === "longo" ? "max-h-[calc(100vh-110px)] overflow-y-auto" : "overflow-hidden")}>
           <div className="mx-auto overflow-hidden rounded-lg shadow-2xl ring-1 ring-border" style={{ width: dim.w * scale, height: dim.h * scale }}>
             <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: dim.w }}>
               <DashboardCanvas ref={canvasRef} pagina={pagina} paginas={s.paginas} aparencia={s.aparencia} resolucao={s.resolucao} empresa={s.contato.empresa} />
@@ -266,11 +305,11 @@ export function Configurator() {
             <DialogDescription>
               {enviado === "cloud"
                 ? `Obrigado, ${s.contato.nome.split(" ")[0] || ""}. Nossa equipe vai analisar seu layout e enviar a proposta para ${s.contato.email}.`
-                : "Não conseguimos conectar ao servidor agora; sua solicitação foi salva neste navegador. Baixe o JSON e tente enviar novamente em instantes."}
+                : "Não conseguimos conectar ao servidor agora; sua solicitação foi salva neste navegador. Tente enviar novamente em instantes."}
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={exportJson}><FileJson /> Baixar especificação</Button>
+            <Button variant="outline" className="flex-1" onClick={exportPng}><ImageDown /> Baixar PNG</Button>
             <Button className="flex-1" onClick={() => { setEnviado(null); s.reset(); }}>Novo briefing</Button>
           </div>
         </DialogContent>

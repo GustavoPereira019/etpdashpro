@@ -91,7 +91,7 @@ export const DashboardCanvas = forwardRef<HTMLDivElement, Props>(function Dashbo
               gridAutoRows: lateral ? "minmax(0,1fr)" : undefined,
               width: lateral ? 240 : "100%",
               flexShrink: 0,
-              maxHeight: lateral && resolucao !== "scroll" ? "100%" : undefined,
+              maxHeight: lateral && resolucao !== "longo" ? "100%" : undefined,
             }}
           >
             {pagina.kpis.map((k, i) => (

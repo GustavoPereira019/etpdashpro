@@ -52,7 +52,7 @@ export const MOCK_SOLICITACOES: Solicitacao[] = [
   {
     id: "mock-2", cliente_nome: "Rafael Lima", cliente_email: "rafael@logix.io", cliente_telefone: null,
     empresa: "Logix", fonte_dados: "API REST, PostgreSQL", volume_dados: "Mais de 10 milhões", objetivo: "Monitorar SLA de entregas.",
-    resolucao_painel: "scroll", tema: "claro", status: "Em Analise", observacoes_tecnicas: null, created_at: "2026-10-05T09:02:00Z",
+    resolucao_painel: "longo", tema: "claro", status: "Em Analise", observacoes_tecnicas: null, created_at: "2026-10-05T09:02:00Z",
     solicitacao_telas: [
       { id: "t2", nome_tela: "Operação", ordem: 0, posicao_cards: "lateral", qtd_cards: 3, solicitacao_elementos: [
         el("e5", "KPI", 0, "Entregas no prazo"), el("e6", "Barra", 0, "Atrasos por transportadora"), el("e7", "Tabela", 1, "Detalhe de pedidos"),

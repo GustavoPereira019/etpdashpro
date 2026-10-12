@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Aparencia, Contato, Pagina, Resolucao } from "./briefing-store";
+import type { Aparencia, Contato, Filtros, MenuPosicao, Pagina, Resolucao } from "./briefing-store";
 
 export interface BriefingPayload {
   contato: Contato;
@@ -7,6 +7,8 @@ export interface BriefingPayload {
   aparencia: Aparencia;
   paginas: Pagina[];
   observacoes: string;
+  menuPosicao: MenuPosicao;
+  filtros: Filtros;
 }
 
 export function buildSpec(p: BriefingPayload) {
@@ -14,7 +16,9 @@ export function buildSpec(p: BriefingPayload) {
   return {
     versao: 1,
     gerado_em: new Date().toISOString(),
-    solicitante: p.contato,
+    solicitante: (({ arquivoExemplo, ...c }) => ({ ...c, arquivo_exemplo: arquivoExemplo?.name ?? null }))(p.contato),
+    menu_posicao: p.menuPosicao,
+    filtros: p.filtros,
     resolucao: p.resolucao,
     aparencia: { ...aparencia, possui_logo: !!logo },
     paginas: p.paginas.map((pg, i) => ({
@@ -23,7 +27,7 @@ export function buildSpec(p: BriefingPayload) {
       posicao_cards: pg.posicaoCards,
       kpis: pg.kpis,
       grid: pg.gridPreset,
-      visuais: pg.visuais.map((v) => ({ tipo: v.tipo, titulo: v.titulo, descricao: v.descricao, detalhes_custom: v.tipo === "Custom_HTML" ? v.customHtml : undefined })),
+      visuais: pg.visuais.map((v) => ({ tipo: v.tipo, titulo: v.titulo, descricao: v.descricao, detalhes_custom: v.tipo === "Custom_HTML" ? v.customHtml : undefined, outro_tipo: v.tipo === "Outro" ? v.outroTipo : undefined, alternancia: v.alternancia })),
     })),
     observacoes: p.observacoes,
   };
@@ -69,7 +73,7 @@ export async function submitBriefing(p: BriefingPayload): Promise<"cloud" | "loc
         posicao_index: j,
         titulo: v.titulo,
         descricao_informacoes: v.descricao,
-        detalhes_custom_html: v.tipo === "Custom_HTML" ? v.customHtml : null,
+        detalhes_custom_html: v.tipo === "Custom_HTML" ? v.customHtml : v.tipo === "Outro" ? v.outroTipo : null,
       })),
     ]);
     if (elementos.length) {

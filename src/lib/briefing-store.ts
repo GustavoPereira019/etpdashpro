@@ -1,7 +1,11 @@
 import { create } from "zustand";
 
-export type Resolucao = "padrao" | "expandido" | "scroll";
-export type VisualTipo = "Linha" | "Barra" | "Rosca" | "Tabela" | "Dispersao" | "Custom_HTML";
+export type Resolucao = "padrao" | "expandido" | "longo";
+export type MenuPosicao = "topo" | "lateral_direita";
+export type FiltroEstilo = "ocultos" | "exibidos";
+export type VisualTipo =
+  | "Linha" | "Barra" | "Colunas" | "Barra_Clusterizada" | "Barra_Empilhada" | "Linha_Barra"
+  | "Rosca" | "Tabela" | "Dispersao" | "Mapa" | "Indicadores" | "Custom_HTML" | "Outro";
 export type GridPreset = "2x2" | "1+2" | "2col" | "custom";
 export type CantoEstilo = "reto" | "medio" | "arredondado";
 
@@ -11,6 +15,8 @@ export interface Visual {
   titulo: string;
   descricao: string;
   customHtml: string;
+  outroTipo: string;
+  alternancia: boolean;
 }
 
 export interface Pagina {
@@ -44,19 +50,34 @@ export interface Aparencia {
   logo: string | null;
 }
 
-export const RESOLUCOES: Record<Resolucao, { label: string; w: number; h: number; hint: string }> = {
-  padrao: { label: "Padrão 16:9", w: 1280, h: 720, hint: "1280×720" },
-  expandido: { label: "Expandido", w: 1366, h: 900, hint: "1366×900" },
-  scroll: { label: "Longo / Scroll", w: 1280, h: 1800, hint: "1280×1800+" },
+export const RESOLUCOES: Record<Resolucao, { label: string; w: number; h: number; hint: string; maxKpis: number; maxVisuais: number }> = {
+  padrao: { label: "Padrão 16:9", w: 1280, h: 720, hint: "1280×720", maxKpis: 4, maxVisuais: 6 },
+  expandido: { label: "Expandido", w: 1500, h: 1000, hint: "1500×1000", maxKpis: 5, maxVisuais: 9 },
+  longo: { label: "Longo / Scroll", w: 3200, h: 3000, hint: "3200×3000", maxKpis: 6, maxVisuais: 12 },
 };
+
+export const MAX_PAGINAS = 10;
+
+export interface Filtros {
+  quais: string;
+  quantidade: number;
+  estilo: FiltroEstilo;
+}
 
 export const VISUAL_LABELS: Record<VisualTipo, string> = {
   Linha: "Linhas / Área",
-  Barra: "Barras / Colunas",
+  Barra: "Barras",
+  Colunas: "Colunas",
+  Barra_Clusterizada: "Barra Clusterizada",
+  Barra_Empilhada: "Barra Empilhada",
+  Linha_Barra: "Linha com Barra",
   Rosca: "Rosca / Pizza",
   Tabela: "Tabela / Matriz",
   Dispersao: "Dispersão / Treemap",
+  Mapa: "Mapa",
+  Indicadores: "Indicadores",
   Custom_HTML: "Personalizado HTML / Deneb / D3",
+  Outro: "Outro",
 };
 
 export const PRESET_SLOTS: Record<Exclude<GridPreset, "custom">, number> = { "2x2": 4, "1+2": 3, "2col": 2 };
@@ -72,6 +93,8 @@ export const novoVisual = (i: number): Visual => ({
   titulo: "",
   descricao: "",
   customHtml: "",
+  outroTipo: "",
+  alternancia: false,
 });
 
 export const novaPagina = (nome: string): Pagina => ({
@@ -91,6 +114,10 @@ interface State {
   paginas: Pagina[];
   paginaAtiva: string;
   observacoes: string;
+  menuPosicao: MenuPosicao;
+  filtros: Filtros;
+  setMenuPosicao: (m: MenuPosicao) => void;
+  setFiltros: (f: Partial<Filtros>) => void;
   setEtapa: (e: 1 | 2) => void;
   setContato: (p: Partial<Contato>) => void;
   setResolucao: (r: Resolucao) => void;
@@ -122,7 +149,7 @@ const aparenciaInicial: Aparencia = {
 
 const inicial = () => {
   const p = novaPagina("Visão Geral");
-  return { etapa: 1 as const, contato: { ...contatoInicial, fontes: [] }, aparencia: { ...aparenciaInicial }, resolucao: "padrao" as Resolucao, paginas: [p], paginaAtiva: p.id, observacoes: "" };
+  return { etapa: 1 as const, contato: { ...contatoInicial, fontes: [] }, aparencia: { ...aparenciaInicial }, resolucao: "padrao" as Resolucao, paginas: [p], paginaAtiva: p.id, observacoes: "", menuPosicao: "topo" as MenuPosicao, filtros: { quais: "", quantidade: 0, estilo: "exibidos" as FiltroEstilo } };
 };
 
 const mapPagina = (paginas: Pagina[], id: string, fn: (p: Pagina) => Pagina) => paginas.map((p) => (p.id === id ? fn(p) : p));
@@ -131,12 +158,28 @@ export const useBriefing = create<State>((set) => ({
   ...inicial(),
   setEtapa: (etapa) => set({ etapa }),
   setContato: (c) => set((s) => ({ contato: { ...s.contato, ...c } })),
-  setResolucao: (resolucao) => set({ resolucao }),
+  setMenuPosicao: (menuPosicao) => set({ menuPosicao }),
+  setFiltros: (f) => set((s) => ({ filtros: { ...s.filtros, ...f } })),
+  setResolucao: (resolucao) =>
+    set((s) => {
+      const lim = RESOLUCOES[resolucao];
+      return {
+        resolucao,
+        paginas: s.paginas.map((p) => ({
+          ...p,
+          kpis: p.kpis.slice(0, lim.maxKpis),
+          visuais: p.visuais.slice(0, lim.maxVisuais),
+          posicaoCards: resolucao === "longo" ? "topo" : p.posicaoCards,
+        })),
+      };
+    }),
   setAparencia: (a) => set((s) => ({ aparencia: { ...s.aparencia, ...a } })),
   setObservacoes: (observacoes) => set({ observacoes }),
   addPagina: (nome) =>
     set((s) => {
+      if (s.paginas.length >= MAX_PAGINAS) return s;
       const p = novaPagina(nome);
+      p.kpis = p.kpis.slice(0, RESOLUCOES[s.resolucao].maxKpis);
       return { paginas: [...s.paginas, p], paginaAtiva: p.id };
     }),
   removePagina: (id) =>
@@ -150,7 +193,7 @@ export const useBriefing = create<State>((set) => ({
   setQtdKpis: (id, n) =>
     set((s) => ({
       paginas: mapPagina(s.paginas, id, (p) => {
-        const qtd = Math.max(0, Math.min(5, n));
+        const qtd = Math.max(0, Math.min(RESOLUCOES[s.resolucao].maxKpis, n));
         const kpis = p.kpis.slice(0, qtd);
         while (kpis.length < qtd) kpis.push(`KPI ${kpis.length + 1}`);
         return { ...p, kpis };
@@ -171,7 +214,7 @@ export const useBriefing = create<State>((set) => ({
   addVisual: (id) =>
     set((s) => ({
       paginas: mapPagina(s.paginas, id, (p) =>
-        p.visuais.length >= 8 ? p : { ...p, gridPreset: "custom", visuais: [...p.visuais, novoVisual(p.visuais.length)] },
+        p.visuais.length >= RESOLUCOES[s.resolucao].maxVisuais ? p : { ...p, gridPreset: "custom", visuais: [...p.visuais, novoVisual(p.visuais.length)] },
       ),
     })),
   removeVisual: (id, vid) =>

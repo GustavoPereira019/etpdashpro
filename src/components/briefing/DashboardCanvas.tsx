@@ -91,7 +91,7 @@ export const DashboardCanvas = forwardRef<HTMLDivElement, Props>(function Dashbo
               gridAutoRows: lateral ? "minmax(0,1fr)" : undefined,
               width: lateral ? 240 : "100%",
               flexShrink: 0,
-              maxHeight: lateral && resolucao !== "scroll" ? "100%" : undefined,
+              maxHeight: lateral && resolucao !== "longo" ? "100%" : undefined,
             }}
           >
             {pagina.kpis.map((k, i) => (
@@ -207,6 +207,12 @@ function ChartMock({ v, p, s, line, sub }: { v: Visual; p: string; s: string; li
         <div style={{ height: "100%", border: `1.5px dashed ${p}`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 4, background: mix(p, 0.06) }}>
           <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 18, color: p }}>{"</>"}</span>
           <span style={{ fontSize: 11, color: sub }}>Visual sob medida · HTML / Deneb / D3</span>
+        </div>
+      );
+    default:
+      return (
+        <div style={{ height: "100%", border: `1.5px dashed ${line}`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: sub }}>
+          {v.tipo.replace(/_/g, " ")}
         </div>
       );
   }

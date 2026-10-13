@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import {
-  ArrowLeft, CheckCircle2, Code2, Filter, ImageDown, Menu, LayoutGrid, Monitor, Palette, Plus, Send, Trash2, Upload, X, Gauge,
+  ArrowLeft, CheckCircle2, Code2, Filter, ImageDown, Menu, LayoutGrid, Monitor, Palette, Plus, Send, Trash2, Upload, X, Gauge, PanelsTopLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { MAX_PAGINAS, RESOLUCOES, VISUAL_LABELS, useBriefing, type GridPreset, type Resolucao, type VisualTipo } from "@/lib/briefing-store";
+import { BRIEFING_TEMPLATES, MAX_PAGINAS, RESOLUCOES, VISUAL_LABELS, useBriefing, type GridPreset, type Resolucao, type VisualTipo } from "@/lib/briefing-store";
 import { submitBriefing } from "@/lib/submit-briefing";
 import { DashboardCanvas } from "./DashboardCanvas";
 
@@ -26,7 +26,7 @@ const PRESETS: { id: GridPreset; label: string }[] = [
 
 export function Configurator() {
   const s = useBriefing();
-  const pagina = s.paginas.find((p) => p.id === s.paginaAtiva) ?? s.paginas[0]!;
+  const pagina = s.paginas.find((p) => p.id === s.paginaAtiva) ?? s.paginas[0];
   const canvasRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.6);
@@ -47,7 +47,7 @@ export function Configurator() {
     if (!canvasRef.current) return;
     try {
       const url = await toPng(canvasRef.current, { pixelRatio: 2, cacheBust: true });
-      download(url, `layout-${slug(pagina.nome)}.png`);
+      download(url, `layout-${slug(pagina?.nome ?? "painel")}.png`);
     } catch {
       toast.error("Não foi possível gerar a imagem.");
     }
@@ -72,6 +72,8 @@ export function Configurator() {
     reader.readAsDataURL(f);
   };
 
+  if (!pagina) return null;
+
   return (
     <div className="grid min-h-[calc(100vh-57px)] lg:grid-cols-[380px_minmax(0,1fr)]">
       {/* Sidebar */}
@@ -81,7 +83,24 @@ export function Configurator() {
           <span className="font-mono text-xs text-muted-foreground">Etapa 2 de 2</span>
         </div>
 
-        <Accordion type="multiple" defaultValue={["res", "pag", "menu", "fil", "kpi", "vis"]} className="px-5">
+        <Accordion type="multiple" defaultValue={["templates", "res", "pag", "menu", "fil", "kpi", "vis"]} className="px-5">
+          <Section value="templates" icon={PanelsTopLeft} title="Exemplos Prontos (Templates)">
+            <div className="space-y-2">
+              {BRIEFING_TEMPLATES.map((template, i) => (
+                <Button key={template.id} variant="outline" className="h-auto w-full justify-start gap-3 whitespace-normal rounded-lg px-3 py-3 text-left" onClick={() => {
+                  s.applyTemplate(template.id);
+                  setNovaPag("");
+                  toast.success(`${template.nome} aplicado.`);
+                }}>
+                  <span className="font-mono text-xs text-primary">0{i + 1}</span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{template.nome}</span>
+                    <span className="block text-xs font-normal text-muted-foreground">{RESOLUCOES[template.resolucao].label} · {template.paginas.length} {template.paginas.length === 1 ? "página" : "páginas"}</span>
+                  </span>
+                </Button>
+              ))}
+            </div>
+          </Section>
           <Section value="res" icon={Monitor} title="Dimensão do painel">
             <div className="grid grid-cols-3 gap-2">
               {(Object.keys(RESOLUCOES) as Resolucao[]).map((r) => (
@@ -276,13 +295,13 @@ export function Configurator() {
         <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/80 px-5 py-3 backdrop-blur">
           <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
             {s.paginas.map((p) => (
-              <button
+              <Button variant="ghost" size="sm"
                 key={p.id}
                 onClick={() => s.setPaginaAtiva(p.id)}
                 className={cn("shrink-0 rounded-md px-3 py-1.5 text-sm transition-colors", p.id === pagina.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
               >
                 {p.nome}
-              </button>
+              </Button>
             ))}
           </div>
           <span className="hidden font-mono text-xs text-muted-foreground md:inline">{dim.w}×{dim.h} · {Math.round(scale * 100)}%</span>
@@ -331,16 +350,16 @@ function Section({ value, icon: Icon, title, children }: { value: string; icon: 
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button
+    <Button variant="outline"
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-lg border px-2 py-2 text-center text-sm transition-colors",
+        "h-auto whitespace-normal rounded-lg border px-2 py-2 text-center text-sm transition-colors",
         active ? "border-primary bg-accent text-accent-foreground" : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
       )}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 

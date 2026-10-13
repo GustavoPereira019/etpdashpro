@@ -116,6 +116,7 @@ interface State {
   observacoes: string;
   menuPosicao: MenuPosicao;
   filtros: Filtros;
+  applyTemplate: (id: TemplateId) => void;
   setMenuPosicao: (m: MenuPosicao) => void;
   setFiltros: (f: Partial<Filtros>) => void;
   setEtapa: (e: 1 | 2) => void;
@@ -154,8 +155,68 @@ const inicial = () => {
 
 const mapPagina = (paginas: Pagina[], id: string, fn: (p: Pagina) => Pagina) => paginas.map((p) => (p.id === id ? fn(p) : p));
 
+export type TemplateId = "executivo" | "logistico" | "comercial" | "geografico" | "longo";
+interface TemplatePagina {
+  nome: string;
+  kpis: string[];
+  posicaoCards: Pagina["posicaoCards"];
+  gridPreset: GridPreset;
+  visuais: { tipo: VisualTipo; titulo: string }[];
+}
+interface BriefingTemplate {
+  id: TemplateId;
+  nome: string;
+  resolucao: Resolucao;
+  paginas: TemplatePagina[];
+}
+
+export const BRIEFING_TEMPLATES: BriefingTemplate[] = [
+  { id: "executivo", nome: "Visão Executiva", resolucao: "padrao", paginas: [
+    { nome: "Visão Executiva", kpis: ["Receita Total", "Margem Líquida", "Resultado Operacional", "Crescimento"], posicaoCards: "topo", gridPreset: "1+2", visuais: [
+      { tipo: "Linha_Barra", titulo: "Receita e resultado por mês" }, { tipo: "Rosca", titulo: "Receita por unidade" }, { tipo: "Barra", titulo: "Realizado vs. meta" },
+    ] },
+  ] },
+  { id: "logistico", nome: "Operacional Logístico", resolucao: "expandido", paginas: [
+    { nome: "Operação Logística", kpis: ["Entregas no Prazo", "Custo por Entrega", "Pedidos em Aberto", "Tempo Médio", "Ocupação da Frota"], posicaoCards: "lateral", gridPreset: "2x2", visuais: [
+      { tipo: "Barra_Empilhada", titulo: "Status das entregas por centro" }, { tipo: "Linha", titulo: "Prazo médio de entrega" }, { tipo: "Barra_Clusterizada", titulo: "Capacidade vs. demanda" }, { tipo: "Tabela", titulo: "Pedidos prioritários" },
+    ] },
+  ] },
+  { id: "comercial", nome: "Comercial / Vendas", resolucao: "padrao", paginas: [
+    { nome: "Vendas", kpis: ["Faturamento", "Conversão", "Ticket Médio", "Novos Clientes"], posicaoCards: "topo", gridPreset: "2x2", visuais: [
+      { tipo: "Colunas", titulo: "Vendas por mês" }, { tipo: "Barra", titulo: "Ranking de vendedores" }, { tipo: "Rosca", titulo: "Participação por canal" }, { tipo: "Linha", titulo: "Evolução da conversão" },
+    ] },
+    { nome: "Produtos", kpis: ["Produtos Vendidos", "Margem por Produto"], posicaoCards: "topo", gridPreset: "2col", visuais: [
+      { tipo: "Barra_Clusterizada", titulo: "Vendas vs. meta por categoria" }, { tipo: "Tabela", titulo: "Desempenho dos produtos" },
+    ] },
+  ] },
+  { id: "geografico", nome: "Análise Geográfica", resolucao: "expandido", paginas: [
+    { nome: "Análise Geográfica", kpis: ["Receita por Região", "Clientes Ativos", "Cobertura", "Crescimento Regional"], posicaoCards: "topo", gridPreset: "1+2", visuais: [
+      { tipo: "Mapa", titulo: "Distribuição de clientes e receita" }, { tipo: "Barra", titulo: "Receita por estado" }, { tipo: "Dispersao", titulo: "Potencial vs. presença regional" },
+    ] },
+  ] },
+  { id: "longo", nome: "Dashboard Longo", resolucao: "longo", paginas: [
+    { nome: "Panorama Completo", kpis: ["Receita Total", "Margem", "Pedidos", "Clientes", "Ticket Médio", "Satisfação"], posicaoCards: "topo", gridPreset: "custom", visuais: [
+      { tipo: "Linha_Barra", titulo: "Receita e margem mensal" }, { tipo: "Colunas", titulo: "Pedidos por mês" }, { tipo: "Rosca", titulo: "Receita por canal" },
+      { tipo: "Mapa", titulo: "Cobertura geográfica" }, { tipo: "Barra_Clusterizada", titulo: "Realizado vs. orçamento" }, { tipo: "Barra_Empilhada", titulo: "Mix de produtos por região" },
+      { tipo: "Linha", titulo: "Retenção de clientes" }, { tipo: "Dispersao", titulo: "Volume vs. rentabilidade" }, { tipo: "Indicadores", titulo: "Atingimento das metas" },
+      { tipo: "Tabela", titulo: "Detalhamento por unidade" }, { tipo: "Barra", titulo: "Ranking de produtos" }, { tipo: "Colunas", titulo: "Satisfação por período" },
+    ] },
+  ] },
+];
+
 export const useBriefing = create<State>((set) => ({
   ...inicial(),
+  applyTemplate: (id) => set(() => {
+    const template = BRIEFING_TEMPLATES.find((t) => t.id === id);
+    if (!template) return {};
+    const paginas: Pagina[] = template.paginas.map((p) => ({
+      ...p, id: uid(), kpis: [...p.kpis],
+      visuais: p.visuais.map((v, i) => ({ ...novoVisual(i), ...v })),
+    }));
+    const first = paginas[0];
+    if (!first) return {};
+    return { resolucao: template.resolucao, paginas, paginaAtiva: first.id };
+  }),
   setEtapa: (etapa) => set({ etapa }),
   setContato: (c) => set((s) => ({ contato: { ...s.contato, ...c } })),
   setMenuPosicao: (menuPosicao) => set({ menuPosicao }),
@@ -186,7 +247,7 @@ export const useBriefing = create<State>((set) => ({
     set((s) => {
       if (s.paginas.length <= 1) return s;
       const paginas = s.paginas.filter((p) => p.id !== id);
-      return { paginas, paginaAtiva: s.paginaAtiva === id ? paginas[0]!.id : s.paginaAtiva };
+      return { paginas, paginaAtiva: s.paginaAtiva === id ? (paginas[0]?.id ?? s.paginaAtiva) : s.paginaAtiva };
     }),
   setPaginaAtiva: (paginaAtiva) => set({ paginaAtiva }),
   updatePagina: (id, patch) => set((s) => ({ paginas: mapPagina(s.paginas, id, (p) => ({ ...p, ...patch })) })),

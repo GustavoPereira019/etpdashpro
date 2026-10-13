@@ -43,7 +43,8 @@ export const DashboardCanvas = forwardRef<HTMLDivElement, Props>(function Dashbo
     <div
       ref={ref}
       style={{ width: dim.w, minHeight: dim.h, height: dim.h, background: aparencia.fundo, color: text, fontFamily: "Manrope, sans-serif" }}
-      className="flex flex-col"
+      className={`flex flex-col ${resolucao === "longo" ? "overflow-y-auto" : "overflow-hidden"}`}
+      data-dashboard-canvas
     >
       {/* header */}
       <div style={{ height: 64, borderBottom: `1px solid ${line}`, padding: "0 28px" }} className="flex shrink-0 items-center gap-6">
@@ -81,60 +82,58 @@ export const DashboardCanvas = forwardRef<HTMLDivElement, Props>(function Dashbo
         </div>
       </div>
 
-      <div style={{ padding: 24, gap: 20 }} className={`flex min-h-0 flex-1 ${lateral ? "flex-row" : "flex-col"}`}>
+      <div style={{ padding: 24, gap: 20 }} className={`flex shrink-0 items-start ${lateral ? "flex-row" : "flex-col"}`}>
         {pagina.kpis.length > 0 && (
           <div
             style={{
               display: "grid",
               gap: 16,
-              gridTemplateColumns: lateral ? "1fr" : `repeat(${pagina.kpis.length}, minmax(0,1fr))`,
-              gridAutoRows: lateral ? "minmax(0,1fr)" : undefined,
+              gridTemplateColumns: lateral ? "240px" : `repeat(${pagina.kpis.length}, minmax(0,240px))`,
+              gridAutoRows: "116px",
               width: lateral ? 240 : "100%",
               flexShrink: 0,
-              maxHeight: lateral && resolucao !== "longo" ? "100%" : undefined,
             }}
           >
             {pagina.kpis.map((k, i) => (
-              <div key={i} style={{ ...card, padding: "16px 18px", position: "relative", overflow: "hidden" }}>
+              <div key={i} data-dashboard-kpi style={{ ...card, padding: "16px 18px", position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: i % 2 ? aparencia.secundaria : aparencia.primaria }} />
-                <div style={{ fontSize: 12, color: sub, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.6 }}>{k || "KPI"}</div>
-                <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "Sora, sans-serif", marginTop: 6 }}>{["R$ 4,2M", "32,8%", "R$ 1.290", "12.480", "98,1%"][i]}</div>
+                <div style={{ fontSize: 12, color: sub, fontWeight: 600, textTransform: "uppercase", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }} title={k}>{k || "KPI"}</div>
+                <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "Sora, sans-serif", marginTop: 6 }}>{["R$ 4,2M", "32,8%", "R$ 1.290", "12.480", "98,1%", "94,6%"][i % 6]}</div>
                 <div style={{ fontSize: 12, color: i % 3 === 1 ? "#F87171" : "#4ADE80", marginTop: 4 }}>{i % 3 === 1 ? "▼ 1,2%" : "▲ 8,4%"} vs mês ant.</div>
               </div>
             ))}
           </div>
         )}
-        <VisualGrid pagina={pagina} card={card} aparencia={aparencia} sub={sub} line={line} />
+        <VisualGrid pagina={pagina} card={card} aparencia={aparencia} sub={sub} line={line} resolucao={resolucao} lateral={lateral} />
       </div>
     </div>
   );
 });
 
-function gridStyle(p: Pagina): React.CSSProperties {
+function gridStyle(p: Pagina, resolucao: Resolucao, lateral: boolean): React.CSSProperties {
   const n = p.visuais.length;
-  switch (p.gridPreset) {
-    case "2x2":
-      return { gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr" };
-    case "1+2":
-      return { gridTemplateColumns: "1.6fr 1fr", gridTemplateRows: "1fr 1fr" };
-    case "2col":
-      return { gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr" };
-    default: {
-      const cols = n <= 2 ? n : n <= 4 ? 2 : 3;
-      return { gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))`, gridTemplateRows: `repeat(${Math.ceil(n / cols)}, minmax(0,1fr))` };
-    }
-  }
+  const cols = p.gridPreset === "custom" ? Math.max(1, n <= 2 ? n : n <= 4 ? 2 : 3) : 2;
+  const rows = p.gridPreset === "1+2" ? 2 : Math.max(1, Math.ceil(n / cols));
+  const dim = RESOLUCOES[resolucao];
+  const available = dim.h - 112 - (!lateral && p.kpis.length ? 136 : 0);
+  const rowHeight = Math.min(resolucao === "longo" ? 340 : 300, Math.max(150, (available - (rows - 1) * 20) / rows));
+  return {
+    width: "100%", maxWidth: cols * 620 + (cols - 1) * 20,
+    gridTemplateColumns: p.gridPreset === "1+2" ? "minmax(0,1.6fr) minmax(0,1fr)" : `repeat(${cols}, minmax(0,1fr))`,
+    gridAutoRows: rowHeight,
+  };
 }
 
-function VisualGrid({ pagina, card, aparencia, sub, line }: { pagina: Pagina; card: React.CSSProperties; aparencia: Aparencia; sub: string; line: string }) {
+function VisualGrid({ pagina, card, aparencia, sub, line, resolucao, lateral }: { pagina: Pagina; card: React.CSSProperties; aparencia: Aparencia; sub: string; line: string; resolucao: Resolucao; lateral: boolean }) {
   return (
-    <div style={{ display: "grid", gap: 20, flex: 1, minHeight: 0, minWidth: 0, ...gridStyle(pagina) }}>
+    <div style={{ display: "grid", gap: 20, minWidth: 0, ...gridStyle(pagina, resolucao, lateral) }}>
       {pagina.visuais.map((v, i) => (
         <div
           key={v.id}
+          data-dashboard-visual
           style={{ ...card, padding: 18, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, gridRow: pagina.gridPreset === "1+2" && i === 0 ? "span 2" : undefined }}
         >
-          <div style={{ fontWeight: 700, fontSize: 14 }}>{v.titulo || `Visual ${i + 1}`}</div>
+          <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", flexShrink: 0 }} title={v.titulo}>{v.titulo || `Visual ${i + 1}`}</div>
           {v.descricao && <div style={{ fontSize: 11, color: sub, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.descricao}</div>}
           <div style={{ flex: 1, minHeight: 0, marginTop: 12 }}>
             <ChartMock v={v} p={aparencia.primaria} s={aparencia.secundaria} line={line} sub={sub} />
@@ -146,7 +145,7 @@ function VisualGrid({ pagina, card, aparencia, sub, line }: { pagina: Pagina; ca
 }
 
 function ChartMock({ v, p, s, line, sub }: { v: Visual; p: string; s: string; line: string; sub: string }) {
-  const svg = { width: "100%", height: "100%", preserveAspectRatio: "none" as const, viewBox: "0 0 300 150" };
+  const svg = { width: "100%", height: "100%", preserveAspectRatio: "xMidYMid meet" as const, viewBox: "0 0 300 150", role: "img", "aria-label": v.tipo.replace(/_/g, " ") };
   switch (v.tipo) {
     case "Linha":
       return (
@@ -160,9 +159,62 @@ function ChartMock({ v, p, s, line, sub }: { v: Visual; p: string; s: string; li
     case "Barra":
       return (
         <svg {...svg}>
+          {[220, 175, 245, 140, 190].map((w, i) => (
+            <g key={i}><line x1="0" x2="300" y1={i * 29 + 26} y2={i * 29 + 26} stroke={line} /><rect x="0" y={i * 29 + 3} width={w} height="17" rx="3" fill={i % 2 ? s : p} /></g>
+          ))}
+        </svg>
+      );
+    case "Colunas":
+      return (
+        <svg {...svg}>
           {[80, 120, 60, 135, 100, 90, 115, 70].map((h, i) => (
             <rect key={i} x={i * 37 + 6} y={150 - h} width="24" height={h} rx="3" fill={i === 3 ? p : mix(i % 2 ? s : p, 0.55)} />
           ))}
+        </svg>
+      );
+    case "Barra_Clusterizada":
+      return (
+        <svg {...svg}>
+          {[180, 235, 150, 205].map((w, i) => (
+            <g key={i}><rect x="0" y={i * 37 + 2} width={w} height="12" rx="2" fill={p} /><rect x="0" y={i * 37 + 16} width={w * 0.76} height="12" rx="2" fill={s} /></g>
+          ))}
+        </svg>
+      );
+    case "Barra_Empilhada":
+      return (
+        <svg {...svg}>
+          {[110, 150, 90, 130, 105].map((w, i) => (
+            <g key={i}><rect x="0" y={i * 29 + 3} width={w} height="18" fill={p} /><rect x={w} y={i * 29 + 3} width={60 + i * 8} height="18" fill={s} /><rect x={w + 60 + i * 8} y={i * 29 + 3} width="30" height="18" fill={mix(p, 0.35)} /></g>
+          ))}
+        </svg>
+      );
+    case "Linha_Barra":
+      return (
+        <svg {...svg}>
+          {[30, 70, 110].map((y) => <line key={y} x1="0" x2="300" y1={y} y2={y} stroke={line} />)}
+          {[65, 85, 70, 105, 95, 120].map((h, i) => <rect key={i} x={i * 50 + 8} y={150 - h} width="28" height={h} rx="3" fill={mix(p, 0.6)} />)}
+          <path d="M22 90 L72 72 L122 84 L172 43 L222 56 L272 20" fill="none" stroke={s} strokeWidth="3" />
+          {[[22, 90], [72, 72], [122, 84], [172, 43], [222, 56], [272, 20]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="4" fill={s} />)}
+        </svg>
+      );
+    case "Mapa":
+      return (
+        <svg {...svg}>
+          <g transform="translate(75,0)">
+            <path d="M30 12 L80 5 L105 22 L144 27 L153 55 L133 83 L110 93 L100 116 L80 145 L62 119 L59 93 L40 72 L18 60 L6 34 Z" fill={mix(p, 0.12)} stroke={p} strokeWidth="1.5" />
+            <path d="M6 34 L60 40 L80 5 M60 40 L59 93 M60 40 L105 22 M60 40 L133 83 M59 93 L110 93 M62 119 L100 116" fill="none" stroke={line} strokeWidth="1.5" />
+            {[[40, 35, 6], [95, 48, 10], [120, 70, 7], [76, 92, 12], [82, 120, 5]].map(([x, y, r], i) => <g key={i}><circle cx={x} cy={y} r={(r ?? 5) + 4} fill={mix(i % 2 ? s : p, 0.15)} /><circle cx={x} cy={y} r={r} fill={mix(i % 2 ? s : p, 0.75)} /></g>)}
+          </g>
+        </svg>
+      );
+    case "Indicadores":
+      return (
+        <svg {...svg}>
+          {[0.84, 0.66, 0.92].map((value, i) => <g key={i} transform={`translate(${i * 100 + 50},72)`}>
+            <circle r="35" fill="none" stroke={line} strokeWidth="8" />
+            <circle r="35" fill="none" stroke={i % 2 ? s : p} strokeWidth="8" strokeDasharray={`${value * 220} 220`} transform="rotate(-90)" strokeLinecap="round" />
+            <text textAnchor="middle" y="5" fill={sub} fontSize="17" fontWeight="700">{Math.round(value * 100)}%</text>
+          </g>)}
         </svg>
       );
     case "Rosca":

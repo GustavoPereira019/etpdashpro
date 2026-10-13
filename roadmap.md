@@ -1,3 +1,3 @@
-- [ ] Ajustar tamanhos de KPIs e gráficos, rolagem Longo e representações SVG.
-- [ ] Adicionar cinco templates aplicáveis sem alterar identidade visual ou contato.
-- [ ] Verificar modelos, personalização de cores e proporções na prévia.
+- [x] Ajustar tamanhos de KPIs e gráficos, rolagem Longo e representações SVG.
+- [x] Adicionar cinco templates aplicáveis sem alterar identidade visual ou contato.
+- [x] Verificar modelos, personalização de cores e proporções na prévia.

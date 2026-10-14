@@ -26,6 +26,8 @@ export interface Visual {
   w: number;
   h: number;
   override: VisualOverride;
+  customBgColor?: string;
+  customPrimaryColor?: string;
 }
 
 export const DEFAULT_VISUAL_W = 4;
@@ -125,6 +127,8 @@ export const novoVisual = (i: number): Visual => ({
   w: DEFAULT_VISUAL_W,
   h: DEFAULT_VISUAL_H,
   override: { enabled: false, fundo: "", primaria: "" },
+  customBgColor: undefined,
+  customPrimaryColor: undefined,
 });
 
 export const novaPagina = (nome: string): Pagina => ({
@@ -256,7 +260,7 @@ export const useBriefing = create<State>((set) => ({
     if (!template) return {};
     const paginas: Pagina[] = template.paginas.map((p) => ({
       ...p, id: uid(), kpis: [...p.kpis],
-      visuais: p.visuais.map((v, i) => ({ ...novoVisual(i), ...v, override: { enabled: false, fundo: "", primaria: "" } })),
+      visuais: p.visuais.map((v, i) => ({ ...novoVisual(i), ...v, override: { enabled: false, fundo: "", primaria: "" }, customBgColor: undefined, customPrimaryColor: undefined })),
     }));
     const first = paginas[0];
     if (!first) return {};

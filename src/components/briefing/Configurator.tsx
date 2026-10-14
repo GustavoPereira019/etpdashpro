@@ -252,6 +252,16 @@ export function Configurator() {
                       <ColorField label="Cor Primária" value={v.override.primaria || s.aparencia.primaria} onChange={(val) => s.updateVisual(pagina.id, v.id, { override: { ...v.override, primaria: val } })} />
                     </div>
                   )}
+                  <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-xs">
+                    <span>Personalizar cores deste gráfico</span>
+                    <Switch checked={!!v.customBgColor || !!v.customPrimaryColor} onCheckedChange={(b) => s.updateVisual(pagina.id, v.id, { customBgColor: b ? (v.customBgColor || s.aparencia.fundo) : undefined, customPrimaryColor: b ? (v.customPrimaryColor || s.aparencia.primaria) : undefined })} />
+                  </label>
+                  {(v.customBgColor || v.customPrimaryColor) && (
+                    <div className="grid grid-cols-2 gap-2 rounded-lg border border-border p-2">
+                      <ColorField label="Cor de Fundo" value={v.customBgColor || s.aparencia.fundo} onChange={(val) => s.updateVisual(pagina.id, v.id, { customBgColor: val })} />
+                      <ColorField label="Cor Primária" value={v.customPrimaryColor || s.aparencia.primaria} onChange={(val) => s.updateVisual(pagina.id, v.id, { customPrimaryColor: val })} />
+                    </div>
+                  )}
                 </div>
               ))}
               <Button variant="secondary" size="sm" className="w-full" disabled={pagina.visuais.length >= lim.maxVisuais} onClick={() => s.addVisual(pagina.id)}><Plus /> Adicionar visual ({pagina.visuais.length}/{lim.maxVisuais})</Button>

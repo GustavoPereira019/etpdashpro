@@ -268,10 +268,12 @@ function VisualCard({ v, index, paginaId, card, aparencia, sub, line, fs }: {
   const adjustW = (d: number) => resizeVisual(paginaId, v.id, v.w + d, v.h);
   const adjustH = (d: number) => resizeVisual(paginaId, v.id, v.w, v.h + d);
 
-  // Per-visual override
+  // Per-visual color override — check both override struct and flat fields
   const ov = v.override;
-  const cardBg = ov.enabled && ov.fundo ? ov.fundo : card.background;
-  const primaria = ov.enabled && ov.primaria ? ov.primaria : aparencia.primaria;
+  const hasCustomBg = (ov.enabled && ov.fundo) || v.customBgColor;
+  const hasCustomPrim = (ov.enabled && ov.primaria) || v.customPrimaryColor;
+  const cardBg = hasCustomBg ? (v.customBgColor || ov.fundo) : card.background;
+  const primaria = hasCustomPrim ? (v.customPrimaryColor || ov.primaria) : aparencia.primaria;
   const secundaria = aparencia.secundaria;
 
   const cardStyle: React.CSSProperties = {
@@ -300,7 +302,7 @@ function VisualCard({ v, index, paginaId, card, aparencia, sub, line, fs }: {
         </div>
       </div>
       {v.descricao && <div style={{ fontSize: 11 * fs, color: sub, marginTop: 2, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 0 }}>{v.descricao}</div>}
-      <div style={{ flex: 1, width: "100%", minHeight: 0, minWidth: 0, display: "flex", marginTop: 10 }}>
+      <div style={{ flex: 1, width: "100%", height: "100%", minHeight: 0, minWidth: 0, position: "relative", overflow: "hidden", display: "flex", marginTop: 10 }}>
         <ChartMock v={v} p={primaria} s={secundaria} line={line} sub={sub} fs={fs} />
       </div>
       <div onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
@@ -346,7 +348,7 @@ function ChartMock({ v, p, s, line, sub, fs }: { v: Visual; p: string; s: string
     case "Indicadores":
       return (<svg {...svg}>{[0.84, 0.66, 0.92].map((value, i) => <g key={i} transform={`translate(${i * 100 + 50},72)`}><circle r="35" fill="none" stroke={line} strokeWidth="8" /><circle r="35" fill="none" stroke={i % 2 ? s : p} strokeWidth="8" strokeDasharray={`${value * 220} 220`} transform="rotate(-90)" strokeLinecap="round" /><text textAnchor="middle" y="5" fill={sub} fontSize={17 * fs} fontWeight="700">{Math.round(value * 100)}%</text></g>)}</svg>);
     case "Rosca":
-      return (<svg width="100%" height="100%" preserveAspectRatio="none" as const viewBox="0 0 300 150"><g transform="translate(90,75)"><circle r="52" fill="none" stroke={line} strokeWidth="20" /><circle r="52" fill="none" stroke={p} strokeWidth="20" strokeDasharray="160 327" transform="rotate(-90)" /><circle r="52" fill="none" stroke={s} strokeWidth="20" strokeDasharray="90 327" strokeDashoffset="-160" transform="rotate(-90)" /></g>{[p, s, line].map((c, i) => (<g key={i} transform={`translate(180,${50 + i * 22})`}><rect width="10" height="10" rx="2" fill={c} /><rect x="18" y="2" width={70 - i * 12} height="6" rx="3" fill={sub} opacity="0.5" /></g>))}</svg>);
+      return (<svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 300 150"><g transform="translate(90,75)"><circle r="52" fill="none" stroke={line} strokeWidth="20" /><circle r="52" fill="none" stroke={p} strokeWidth="20" strokeDasharray="160 327" transform="rotate(-90)" /><circle r="52" fill="none" stroke={s} strokeWidth="20" strokeDasharray="90 327" strokeDashoffset="-160" transform="rotate(-90)" /></g>{[p, s, line].map((c, i) => (<g key={i} transform={`translate(180,${50 + i * 22})`}><rect width="10" height="10" rx="2" fill={c} /><rect x="18" y="2" width={70 - i * 12} height="6" rx="3" fill={sub} opacity="0.5" /></g>))}</svg>);
     case "Tabela":
       return (<div style={{ display: "flex", flexDirection: "column", gap: 0, height: "100%", overflow: "hidden" }}>{Array.from({ length: 7 }).map((_, i) => (<div key={i} style={{ display: "flex", gap: 10, padding: "7px 0", borderBottom: `1px solid ${line}` }}>{[40, 22, 18, 20].map((w, j) => (<div key={j} style={{ width: `${w}%`, height: 7, borderRadius: 4, background: i === 0 ? mix(p, 0.6) : j === 3 ? mix(s, 0.5) : line }} />))}</div>))}</div>);
     case "Dispersao":

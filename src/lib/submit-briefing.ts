@@ -14,11 +14,14 @@ export interface BriefingPayload {
 export function buildSpec(p: BriefingPayload) {
   const { logo, ...aparencia } = p.aparencia;
   return {
-    versao: 1,
+    versao: 2,
     gerado_em: new Date().toISOString(),
     solicitante: (({ arquivoExemplo, ...c }) => ({ ...c, arquivo_exemplo: arquivoExemplo?.name ?? null }))(p.contato),
     menu_posicao: p.menuPosicao,
-    filtros: p.filtros,
+    filtros: {
+      estilo: p.filtros.estilo,
+      itens: p.filtros.itens.map((f) => ({ nome: f.nome, exibido: f.exibido })),
+    },
     resolucao: p.resolucao,
     aparencia: { ...aparencia, possui_logo: !!logo },
     paginas: p.paginas.map((pg, i) => ({
@@ -27,7 +30,17 @@ export function buildSpec(p: BriefingPayload) {
       posicao_cards: pg.posicaoCards,
       kpis: pg.kpis,
       grid: pg.gridPreset,
-      visuais: pg.visuais.map((v) => ({ tipo: v.tipo, titulo: v.titulo, descricao: v.descricao, detalhes_custom: v.tipo === "Custom_HTML" ? v.customHtml : undefined, outro_tipo: v.tipo === "Outro" ? v.outroTipo : undefined, alternancia: v.alternancia, largura: v.w, altura: v.h })),
+      visuais: pg.visuais.map((v) => ({
+        tipo: v.tipo,
+        titulo: v.titulo,
+        descricao: v.descricao,
+        detalhes_custom: v.tipo === "Custom_HTML" ? v.customHtml : undefined,
+        outro_tipo: v.tipo === "Outro" ? v.outroTipo : undefined,
+        alternancia: v.alternancia,
+        largura: v.w,
+        altura: v.h,
+        override: v.override.enabled ? { fundo: v.override.fundo, primaria: v.override.primaria } : undefined,
+      })),
     })),
     observacoes: p.observacoes,
   };

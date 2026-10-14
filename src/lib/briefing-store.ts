@@ -1,13 +1,19 @@
 import { create } from "zustand";
 
-export type Resolucao = "padrao" | "expandido" | "longo";
-export type MenuPosicao = "topo" | "lateral_direita";
-export type FiltroEstilo = "ocultos" | "exibidos";
+export type Resolucao = "padrao" | "medio" | "grande";
+export type MenuPosicao = "topo" | "lateral_direita" | "oculto";
+export type FiltroEstilo = "exibidos" | "ocultos" | "mistos";
 export type VisualTipo =
   | "Linha" | "Barra" | "Colunas" | "Barra_Clusterizada" | "Barra_Empilhada" | "Linha_Barra"
   | "Rosca" | "Tabela" | "Dispersao" | "Mapa" | "Indicadores" | "Custom_HTML" | "Outro";
 export type GridPreset = "2x2" | "1+2" | "2col" | "custom";
 export type CantoEstilo = "reto" | "medio" | "arredondado";
+
+export interface VisualOverride {
+  enabled: boolean;
+  fundo: string;
+  primaria: string;
+}
 
 export interface Visual {
   id: string;
@@ -19,6 +25,7 @@ export interface Visual {
   alternancia: boolean;
   w: number;
   h: number;
+  override: VisualOverride;
 }
 
 export const DEFAULT_VISUAL_W = 4;
@@ -60,18 +67,29 @@ export interface Aparencia {
 }
 
 export const RESOLUCOES: Record<Resolucao, { label: string; w: number; h: number; hint: string; maxKpis: number; maxVisuais: number }> = {
-  padrao: { label: "Padrão 16:9", w: 1280, h: 720, hint: "1280×720", maxKpis: 4, maxVisuais: 6 },
-  expandido: { label: "Expandido", w: 1500, h: 1000, hint: "1500×1000", maxKpis: 5, maxVisuais: 9 },
-  longo: { label: "Longo / Scroll", w: 3200, h: 3000, hint: "3200×3000", maxKpis: 6, maxVisuais: 12 },
+  padrao: { label: "Padrão", w: 1280, h: 720, hint: "1280×720", maxKpis: 4, maxVisuais: 6 },
+  medio: { label: "Médio", w: 1480, h: 920, hint: "1480×920", maxKpis: 5, maxVisuais: 9 },
+  grande: { label: "Grande", w: 1280, h: 1280, hint: "1280×1280", maxKpis: 6, maxVisuais: 12 },
 };
 
 export const MAX_PAGINAS = 10;
 
-export interface Filtros {
-  quais: string;
-  quantidade: number;
-  estilo: FiltroEstilo;
+export interface FiltroItem {
+  id: string;
+  nome: string;
+  exibido: boolean;
 }
+
+export interface Filtros {
+  estilo: FiltroEstilo;
+  itens: FiltroItem[];
+}
+
+export const FILTRO_LIMITES: Record<FiltroEstilo, { max: number; maxExibidos: number }> = {
+  exibidos: { max: 4, maxExibidos: 4 },
+  ocultos: { max: 10, maxExibidos: 0 },
+  mistos: { max: 10, maxExibidos: 2 },
+};
 
 export const VISUAL_LABELS: Record<VisualTipo, string> = {
   Linha: "Linhas / Área",
@@ -106,6 +124,7 @@ export const novoVisual = (i: number): Visual => ({
   alternancia: false,
   w: DEFAULT_VISUAL_W,
   h: DEFAULT_VISUAL_H,
+  override: { enabled: false, fundo: "", primaria: "" },
 });
 
 export const novaPagina = (nome: string): Pagina => ({
@@ -130,6 +149,10 @@ interface State {
   applyTemplate: (id: TemplateId) => void;
   setMenuPosicao: (m: MenuPosicao) => void;
   setFiltros: (f: Partial<Filtros>) => void;
+  setFiltroEstilo: (e: FiltroEstilo) => void;
+  addFiltro: (nome: string) => void;
+  removeFiltro: (id: string) => void;
+  updateFiltro: (id: string, patch: Partial<FiltroItem>) => void;
   setEtapa: (e: 1 | 2) => void;
   setContato: (p: Partial<Contato>) => void;
   setResolucao: (r: Resolucao) => void;
@@ -160,9 +183,17 @@ const aparenciaInicial: Aparencia = {
   logo: null,
 };
 
+const filtrosIniciais = (): Filtros => ({
+  estilo: "exibidos",
+  itens: [
+    { id: uid(), nome: "Período", exibido: true },
+    { id: uid(), nome: "Região", exibido: true },
+  ],
+});
+
 const inicial = () => {
   const p = novaPagina("Visão Geral");
-  return { etapa: 1 as const, contato: { ...contatoInicial, fontes: [] }, aparencia: { ...aparenciaInicial }, resolucao: "padrao" as Resolucao, paginas: [p], paginaAtiva: p.id, observacoes: "", menuPosicao: "topo" as MenuPosicao, filtros: { quais: "", quantidade: 0, estilo: "exibidos" as FiltroEstilo } };
+  return { etapa: 1 as const, contato: { ...contatoInicial, fontes: [] }, aparencia: { ...aparenciaInicial }, resolucao: "padrao" as Resolucao, paginas: [p], paginaAtiva: p.id, observacoes: "", menuPosicao: "topo" as MenuPosicao, filtros: filtrosIniciais() };
 };
 
 const mapPagina = (paginas: Pagina[], id: string, fn: (p: Pagina) => Pagina) => paginas.map((p) => (p.id === id ? fn(p) : p));
@@ -173,45 +204,47 @@ interface TemplatePagina {
   kpis: string[];
   posicaoCards: Pagina["posicaoCards"];
   gridPreset: GridPreset;
-  visuais: { tipo: VisualTipo; titulo: string }[];
+  visuais: { tipo: VisualTipo; titulo: string; w?: number; h?: number }[];
 }
 interface BriefingTemplate {
   id: TemplateId;
   nome: string;
   resolucao: Resolucao;
+  menuPosicao: MenuPosicao;
+  filtros: { estilo: FiltroEstilo; nomes: { nome: string; exibido: boolean }[] };
   paginas: TemplatePagina[];
 }
 
 export const BRIEFING_TEMPLATES: BriefingTemplate[] = [
-  { id: "executivo", nome: "Visão Executiva", resolucao: "padrao", paginas: [
+  { id: "executivo", nome: "Visão Executiva", resolucao: "padrao", menuPosicao: "topo", filtros: { estilo: "exibidos", nomes: [{ nome: "Período", exibido: true }, { nome: "Região", exibido: true }] }, paginas: [
     { nome: "Visão Executiva", kpis: ["Receita Total", "Margem Líquida", "Resultado Operacional", "Crescimento"], posicaoCards: "topo", gridPreset: "1+2", visuais: [
-      { tipo: "Linha_Barra", titulo: "Receita e resultado por mês" }, { tipo: "Rosca", titulo: "Receita por unidade" }, { tipo: "Barra", titulo: "Realizado vs. meta" },
+      { tipo: "Linha_Barra", titulo: "Receita e resultado por mês", w: 6, h: 2 }, { tipo: "Rosca", titulo: "Receita por unidade", w: 6, h: 2 }, { tipo: "Barra", titulo: "Realizado vs. meta", w: 12, h: 2 },
     ] },
   ] },
-  { id: "logistico", nome: "Operacional Logístico", resolucao: "expandido", paginas: [
+  { id: "logistico", nome: "Operacional Logístico", resolucao: "medio", menuPosicao: "lateral_direita", filtros: { estilo: "mistos", nomes: [{ nome: "Período", exibido: true }, { nome: "Centro de Distribuição", exibido: true }, { nome: "Transportadora", exibido: false }, { nome: "Status", exibido: false }, { nome: "Rota", exibido: false }] }, paginas: [
     { nome: "Operação Logística", kpis: ["Entregas no Prazo", "Custo por Entrega", "Pedidos em Aberto", "Tempo Médio", "Ocupação da Frota"], posicaoCards: "lateral", gridPreset: "2x2", visuais: [
-      { tipo: "Barra_Empilhada", titulo: "Status das entregas por centro" }, { tipo: "Linha", titulo: "Prazo médio de entrega" }, { tipo: "Barra_Clusterizada", titulo: "Capacidade vs. demanda" }, { tipo: "Tabela", titulo: "Pedidos prioritários" },
+      { tipo: "Barra_Empilhada", titulo: "Status das entregas por centro", w: 6, h: 2 }, { tipo: "Linha", titulo: "Prazo médio de entrega", w: 6, h: 2 }, { tipo: "Barra_Clusterizada", titulo: "Capacidade vs. demanda", w: 6, h: 2 }, { tipo: "Tabela", titulo: "Pedidos prioritários", w: 6, h: 2 },
     ] },
   ] },
-  { id: "comercial", nome: "Comercial / Vendas", resolucao: "padrao", paginas: [
+  { id: "comercial", nome: "Comercial / Vendas", resolucao: "padrao", menuPosicao: "topo", filtros: { estilo: "exibidos", nomes: [{ nome: "Período", exibido: true }, { nome: "Região", exibido: true }, { nome: "Vendedor", exibido: true }] }, paginas: [
     { nome: "Vendas", kpis: ["Faturamento", "Conversão", "Ticket Médio", "Novos Clientes"], posicaoCards: "topo", gridPreset: "2x2", visuais: [
-      { tipo: "Colunas", titulo: "Vendas por mês" }, { tipo: "Barra", titulo: "Ranking de vendedores" }, { tipo: "Rosca", titulo: "Participação por canal" }, { tipo: "Linha", titulo: "Evolução da conversão" },
+      { tipo: "Colunas", titulo: "Vendas por mês", w: 6, h: 2 }, { tipo: "Barra", titulo: "Ranking de vendedores", w: 6, h: 2 }, { tipo: "Rosca", titulo: "Participação por canal", w: 6, h: 2 }, { tipo: "Linha", titulo: "Evolução da conversão", w: 6, h: 2 },
     ] },
     { nome: "Produtos", kpis: ["Produtos Vendidos", "Margem por Produto"], posicaoCards: "topo", gridPreset: "2col", visuais: [
-      { tipo: "Barra_Clusterizada", titulo: "Vendas vs. meta por categoria" }, { tipo: "Tabela", titulo: "Desempenho dos produtos" },
+      { tipo: "Barra_Clusterizada", titulo: "Vendas vs. meta por categoria", w: 6, h: 2 }, { tipo: "Tabela", titulo: "Desempenho dos produtos", w: 6, h: 2 },
     ] },
   ] },
-  { id: "geografico", nome: "Análise Geográfica", resolucao: "expandido", paginas: [
+  { id: "geografico", nome: "Análise Geográfica", resolucao: "medio", menuPosicao: "lateral_direita", filtros: { estilo: "mistos", nomes: [{ nome: "Período", exibido: true }, { nome: "Região", exibido: true }, { nome: "Estado", exibido: false }, { nome: "Cidade", exibido: false }] }, paginas: [
     { nome: "Análise Geográfica", kpis: ["Receita por Região", "Clientes Ativos", "Cobertura", "Crescimento Regional"], posicaoCards: "topo", gridPreset: "1+2", visuais: [
-      { tipo: "Mapa", titulo: "Distribuição de clientes e receita" }, { tipo: "Barra", titulo: "Receita por estado" }, { tipo: "Dispersao", titulo: "Potencial vs. presença regional" },
+      { tipo: "Mapa", titulo: "Distribuição de clientes e receita", w: 6, h: 3 }, { tipo: "Barra", titulo: "Receita por estado", w: 6, h: 2 }, { tipo: "Dispersao", titulo: "Potencial vs. presença regional", w: 6, h: 2 },
     ] },
   ] },
-  { id: "longo", nome: "Dashboard Longo", resolucao: "longo", paginas: [
+  { id: "longo", nome: "Dashboard Longo", resolucao: "grande", menuPosicao: "oculto", filtros: { estilo: "ocultos", nomes: [{ nome: "Período", exibido: false }, { nome: "Região", exibido: false }, { nome: "Canal", exibido: false }, { nome: "Categoria", exibido: false }, { nome: "Vendedor", exibido: false }] }, paginas: [
     { nome: "Panorama Completo", kpis: ["Receita Total", "Margem", "Pedidos", "Clientes", "Ticket Médio", "Satisfação"], posicaoCards: "topo", gridPreset: "custom", visuais: [
-      { tipo: "Linha_Barra", titulo: "Receita e margem mensal" }, { tipo: "Colunas", titulo: "Pedidos por mês" }, { tipo: "Rosca", titulo: "Receita por canal" },
-      { tipo: "Mapa", titulo: "Cobertura geográfica" }, { tipo: "Barra_Clusterizada", titulo: "Realizado vs. orçamento" }, { tipo: "Barra_Empilhada", titulo: "Mix de produtos por região" },
-      { tipo: "Linha", titulo: "Retenção de clientes" }, { tipo: "Dispersao", titulo: "Volume vs. rentabilidade" }, { tipo: "Indicadores", titulo: "Atingimento das metas" },
-      { tipo: "Tabela", titulo: "Detalhamento por unidade" }, { tipo: "Barra", titulo: "Ranking de produtos" }, { tipo: "Colunas", titulo: "Satisfação por período" },
+      { tipo: "Linha_Barra", titulo: "Receita e margem mensal", w: 6, h: 2 }, { tipo: "Colunas", titulo: "Pedidos por mês", w: 6, h: 2 }, { tipo: "Rosca", titulo: "Receita por canal", w: 4, h: 2 },
+      { tipo: "Mapa", titulo: "Cobertura geográfica", w: 4, h: 2 }, { tipo: "Barra_Clusterizada", titulo: "Realizado vs. orçamento", w: 4, h: 2 }, { tipo: "Barra_Empilhada", titulo: "Mix de produtos por região", w: 6, h: 2 },
+      { tipo: "Linha", titulo: "Retenção de clientes", w: 6, h: 2 }, { tipo: "Dispersao", titulo: "Volume vs. rentabilidade", w: 4, h: 2 }, { tipo: "Indicadores", titulo: "Atingimento das metas", w: 4, h: 2 },
+      { tipo: "Tabela", titulo: "Detalhamento por unidade", w: 4, h: 2 }, { tipo: "Barra", titulo: "Ranking de produtos", w: 6, h: 2 }, { tipo: "Colunas", titulo: "Satisfação por período", w: 6, h: 2 },
     ] },
   ] },
 ];
@@ -223,16 +256,55 @@ export const useBriefing = create<State>((set) => ({
     if (!template) return {};
     const paginas: Pagina[] = template.paginas.map((p) => ({
       ...p, id: uid(), kpis: [...p.kpis],
-      visuais: p.visuais.map((v, i) => ({ ...novoVisual(i), ...v })),
+      visuais: p.visuais.map((v, i) => ({ ...novoVisual(i), ...v, override: { enabled: false, fundo: "", primaria: "" } })),
     }));
     const first = paginas[0];
     if (!first) return {};
-    return { resolucao: template.resolucao, paginas, paginaAtiva: first.id };
+    const filtros: Filtros = {
+      estilo: template.filtros.estilo,
+      itens: template.filtros.nomes.map((n) => ({ id: uid(), nome: n.nome, exibido: n.exibido })),
+    };
+    return { resolucao: template.resolucao, menuPosicao: template.menuPosicao, filtros, paginas, paginaAtiva: first.id };
   }),
   setEtapa: (etapa) => set({ etapa }),
   setContato: (c) => set((s) => ({ contato: { ...s.contato, ...c } })),
   setMenuPosicao: (menuPosicao) => set({ menuPosicao }),
   setFiltros: (f) => set((s) => ({ filtros: { ...s.filtros, ...f } })),
+  setFiltroEstilo: (estilo) =>
+    set((s) => {
+      const lim = FILTRO_LIMITES[estilo];
+      let itens = s.filtros.itens.slice(0, lim.max);
+      if (estilo === "ocultos") itens = itens.map((i) => ({ ...i, exibido: false }));
+      if (estilo === "exibidos") itens = itens.map((i) => ({ ...i, exibido: true }));
+      if (estilo === "mistos") {
+        const exibidos = itens.filter((i) => i.exibido);
+        if (exibidos.length > lim.maxExibidos) itens = itens.map((i, idx) => ({ ...i, exibido: idx < lim.maxExibidos }));
+      }
+      return { filtros: { estilo, itens } };
+    }),
+  addFiltro: (nome) =>
+    set((s) => {
+      const lim = FILTRO_LIMITES[s.filtros.estilo];
+      if (s.filtros.itens.length >= lim.max) return s;
+      const exibido = s.filtros.estilo === "ocultos" ? false : s.filtros.estilo === "exibidos" ? true : s.filtros.itens.filter((i) => i.exibido).length < lim.maxExibidos;
+      return { filtros: { ...s.filtros, itens: [...s.filtros.itens, { id: uid(), nome, exibido }] } };
+    }),
+  removeFiltro: (id) =>
+    set((s) => ({ filtros: { ...s.filtros, itens: s.filtros.itens.filter((i) => i.id !== id) } })),
+  updateFiltro: (id, patch) =>
+    set((s) => ({
+      filtros: {
+        ...s.filtros,
+        itens: s.filtros.itens.map((i) => {
+          if (i.id !== id) return i;
+          if (patch.exibido !== undefined && s.filtros.estilo === "mistos") {
+            const exibidosCount = s.filtros.itens.filter((x) => x.exibido && x.id !== id).length;
+            if (patch.exibido && exibidosCount >= FILTRO_LIMITES.mistos.maxExibidos) return i;
+          }
+          return { ...i, ...patch };
+        }),
+      },
+    })),
   setResolucao: (resolucao) =>
     set((s) => {
       const lim = RESOLUCOES[resolucao];
@@ -242,7 +314,7 @@ export const useBriefing = create<State>((set) => ({
           ...p,
           kpis: p.kpis.slice(0, lim.maxKpis),
           visuais: p.visuais.slice(0, lim.maxVisuais),
-          posicaoCards: resolucao === "longo" ? "topo" : p.posicaoCards,
+          posicaoCards: resolucao === "grande" ? "topo" : p.posicaoCards,
         })),
       };
     }),

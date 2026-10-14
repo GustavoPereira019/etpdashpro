@@ -16,7 +16,7 @@ interface Props {
 }
 
 const radiusPx = { reto: 0, medio: 8, arredondado: 18 } as const;
-const ROW_BASE = 130;
+const ROW_BASE = 120;
 
 function mix(hex: string, alpha: number) {
   const h = hex.replace("#", "");
@@ -233,7 +233,7 @@ function FiltrosBar({ filtrosExibidos, filtrosOcultos, card, sub, r, line, fs }:
 
 function VisualGrid({ pagina, card, aparencia, sub, line, fs }: { pagina: Pagina; card: React.CSSProperties; aparencia: Aparencia; sub: string; line: string; fs: number }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0, 1fr))", gridAutoRows: `${ROW_BASE * fs}px`, gap: 20, width: "100%", minWidth: 0, alignContent: "start" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(12, minmax(0, 1fr))", gridAutoRows: `${ROW_BASE * fs}px`, gap: 16, width: "100%", minWidth: 0, alignContent: "start" }}>
       {pagina.visuais.map((v, i) => (
         <VisualCard key={v.id} v={v} index={i} paginaId={pagina.id} card={card} aparencia={aparencia} sub={sub} line={line} fs={fs} />
       ))}
@@ -279,7 +279,7 @@ function VisualCard({ v, index, paginaId, card, aparencia, sub, line, fs }: {
     background: cardBg,
     gridColumn: `span ${Math.min(MAX_VISUAL_W, Math.max(MIN_VISUAL_W, v.w))}`,
     gridRow: `span ${Math.min(MAX_VISUAL_H, Math.max(MIN_VISUAL_H, v.h))}`,
-    padding: 18,
+    padding: "16px 20px",
     display: "flex",
     flexDirection: "column",
     minHeight: 0,
@@ -299,8 +299,8 @@ function VisualCard({ v, index, paginaId, card, aparencia, sub, line, fs }: {
           <Stepper label="A" value={v.h} min={MIN_VISUAL_H} max={MAX_VISUAL_H} onDec={() => adjustH(-1)} onInc={() => adjustH(1)} fs={fs} />
         </div>
       </div>
-      {v.descricao && <div style={{ fontSize: 11 * fs, color: sub, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 0 }}>{v.descricao}</div>}
-      <div style={{ flex: 1, minHeight: 0, marginTop: 12 }}>
+      {v.descricao && <div style={{ fontSize: 11 * fs, color: sub, marginTop: 2, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 0 }}>{v.descricao}</div>}
+      <div style={{ flex: 1, width: "100%", minHeight: 0, minWidth: 0, display: "flex", marginTop: 10 }}>
         <ChartMock v={v} p={primaria} s={secundaria} line={line} sub={sub} fs={fs} />
       </div>
       <div onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
@@ -327,7 +327,7 @@ function Stepper({ label, value, min, max, onDec, onInc, fs }: { label: string; 
 }
 
 function ChartMock({ v, p, s, line, sub, fs }: { v: Visual; p: string; s: string; line: string; sub: string; fs: number }) {
-  const svg = { width: "100%", height: "100%", preserveAspectRatio: "xMidYMid meet" as const, viewBox: "0 0 300 150", role: "img", "aria-label": v.tipo.replace(/_/g, " ") };
+  const svg = { width: "100%", height: "100%", preserveAspectRatio: "none" as const, viewBox: "0 0 300 150", role: "img", "aria-label": v.tipo.replace(/_/g, " ") };
   switch (v.tipo) {
     case "Linha":
       return (<svg {...svg}>{[30, 70, 110].map((y) => <line key={y} x1="0" x2="300" y1={y} y2={y} stroke={line} />)}<path d="M0,120 C40,100 60,110 90,80 S150,60 180,70 S240,30 300,25 L300,150 L0,150Z" fill={mix(p, 0.18)} /><path d="M0,120 C40,100 60,110 90,80 S150,60 180,70 S240,30 300,25" fill="none" stroke={p} strokeWidth="2.5" /><path d="M0,130 C50,125 80,115 120,110 S200,95 300,80" fill="none" stroke={s} strokeWidth="2" strokeDasharray="5 4" /></svg>);
@@ -346,7 +346,7 @@ function ChartMock({ v, p, s, line, sub, fs }: { v: Visual; p: string; s: string
     case "Indicadores":
       return (<svg {...svg}>{[0.84, 0.66, 0.92].map((value, i) => <g key={i} transform={`translate(${i * 100 + 50},72)`}><circle r="35" fill="none" stroke={line} strokeWidth="8" /><circle r="35" fill="none" stroke={i % 2 ? s : p} strokeWidth="8" strokeDasharray={`${value * 220} 220`} transform="rotate(-90)" strokeLinecap="round" /><text textAnchor="middle" y="5" fill={sub} fontSize={17 * fs} fontWeight="700">{Math.round(value * 100)}%</text></g>)}</svg>);
     case "Rosca":
-      return (<svg width="100%" height="100%" viewBox="0 0 300 150"><g transform="translate(90,75)"><circle r="52" fill="none" stroke={line} strokeWidth="20" /><circle r="52" fill="none" stroke={p} strokeWidth="20" strokeDasharray="160 327" transform="rotate(-90)" /><circle r="52" fill="none" stroke={s} strokeWidth="20" strokeDasharray="90 327" strokeDashoffset="-160" transform="rotate(-90)" /></g>{[p, s, line].map((c, i) => (<g key={i} transform={`translate(180,${50 + i * 22})`}><rect width="10" height="10" rx="2" fill={c} /><rect x="18" y="2" width={70 - i * 12} height="6" rx="3" fill={sub} opacity="0.5" /></g>))}</svg>);
+      return (<svg width="100%" height="100%" preserveAspectRatio="none" as const viewBox="0 0 300 150"><g transform="translate(90,75)"><circle r="52" fill="none" stroke={line} strokeWidth="20" /><circle r="52" fill="none" stroke={p} strokeWidth="20" strokeDasharray="160 327" transform="rotate(-90)" /><circle r="52" fill="none" stroke={s} strokeWidth="20" strokeDasharray="90 327" strokeDashoffset="-160" transform="rotate(-90)" /></g>{[p, s, line].map((c, i) => (<g key={i} transform={`translate(180,${50 + i * 22})`}><rect width="10" height="10" rx="2" fill={c} /><rect x="18" y="2" width={70 - i * 12} height="6" rx="3" fill={sub} opacity="0.5" /></g>))}</svg>);
     case "Tabela":
       return (<div style={{ display: "flex", flexDirection: "column", gap: 0, height: "100%", overflow: "hidden" }}>{Array.from({ length: 7 }).map((_, i) => (<div key={i} style={{ display: "flex", gap: 10, padding: "7px 0", borderBottom: `1px solid ${line}` }}>{[40, 22, 18, 20].map((w, j) => (<div key={j} style={{ width: `${w}%`, height: 7, borderRadius: 4, background: i === 0 ? mix(p, 0.6) : j === 3 ? mix(s, 0.5) : line }} />))}</div>))}</div>);
     case "Dispersao":

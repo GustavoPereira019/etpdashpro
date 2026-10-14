@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import {
-  ArrowLeft, CheckCircle2, Code2, Filter, ImageDown, Menu, LayoutGrid, Monitor, Palette, Plus, Send, Trash2, Upload, X, Gauge, PanelsTopLeft, Type,
+  ArrowLeft, CheckCircle2, Code2, Filter, ImageDown, Menu, LayoutGrid, Monitor, Palette, Plus, RotateCcw, Send, Trash2, Upload, X, Gauge, PanelsTopLeft, Type,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -95,7 +95,10 @@ export function Configurator() {
       {/* Sidebar */}
       <aside className="border-r border-border bg-sidebar lg:h-[calc(100vh-57px)] lg:overflow-y-auto">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <Button variant="ghost" size="sm" onClick={() => s.setEtapa(1)}><ArrowLeft /> Dados</Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => s.setEtapa(1)}><ArrowLeft /> Dados</Button>
+            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => { s.reset(); toast.success("Configuração reiniciada."); }}><RotateCcw /> Redefinir Tudo</Button>
+          </div>
           <span className="font-mono text-xs text-muted-foreground">Etapa 2 de 2</span>
         </div>
 

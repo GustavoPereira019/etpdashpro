@@ -17,7 +17,16 @@ export interface Visual {
   customHtml: string;
   outroTipo: string;
   alternancia: boolean;
+  w: number;
+  h: number;
 }
+
+export const DEFAULT_VISUAL_W = 4;
+export const DEFAULT_VISUAL_H = 2;
+export const MIN_VISUAL_W = 1;
+export const MAX_VISUAL_W = 12;
+export const MIN_VISUAL_H = 1;
+export const MAX_VISUAL_H = 6;
 
 export interface Pagina {
   id: string;
@@ -95,6 +104,8 @@ export const novoVisual = (i: number): Visual => ({
   customHtml: "",
   outroTipo: "",
   alternancia: false,
+  w: DEFAULT_VISUAL_W,
+  h: DEFAULT_VISUAL_H,
 });
 
 export const novaPagina = (nome: string): Pagina => ({
@@ -134,6 +145,7 @@ interface State {
   addVisual: (id: string) => void;
   removeVisual: (id: string, vid: string) => void;
   updateVisual: (id: string, vid: string, p: Partial<Visual>) => void;
+  resizeVisual: (paginaId: string, visualId: string, w: number, h: number) => void;
   reset: () => void;
 }
 
@@ -287,6 +299,17 @@ export const useBriefing = create<State>((set) => ({
   updateVisual: (id, vid, patch) =>
     set((s) => ({
       paginas: mapPagina(s.paginas, id, (p) => ({ ...p, visuais: p.visuais.map((v) => (v.id === vid ? { ...v, ...patch } : v)) })),
+    })),
+  resizeVisual: (paginaId, visualId, w, h) =>
+    set((s) => ({
+      paginas: mapPagina(s.paginas, paginaId, (p) => ({
+        ...p,
+        visuais: p.visuais.map((v) =>
+          v.id === visualId
+            ? { ...v, w: Math.max(MIN_VISUAL_W, Math.min(MAX_VISUAL_W, w)), h: Math.max(MIN_VISUAL_H, Math.min(MAX_VISUAL_H, h)) }
+            : v,
+        ),
+      })),
     })),
   reset: () => set(inicial()),
 }));

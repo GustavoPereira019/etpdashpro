@@ -27,7 +27,7 @@ export function buildSpec(p: BriefingPayload) {
       posicao_cards: pg.posicaoCards,
       kpis: pg.kpis,
       grid: pg.gridPreset,
-      visuais: pg.visuais.map((v) => ({ tipo: v.tipo, titulo: v.titulo, descricao: v.descricao, detalhes_custom: v.tipo === "Custom_HTML" ? v.customHtml : undefined, outro_tipo: v.tipo === "Outro" ? v.outroTipo : undefined, alternancia: v.alternancia })),
+      visuais: pg.visuais.map((v) => ({ tipo: v.tipo, titulo: v.titulo, descricao: v.descricao, detalhes_custom: v.tipo === "Custom_HTML" ? v.customHtml : undefined, outro_tipo: v.tipo === "Outro" ? v.outroTipo : undefined, alternancia: v.alternancia, largura: v.w, altura: v.h })),
     })),
     observacoes: p.observacoes,
   };

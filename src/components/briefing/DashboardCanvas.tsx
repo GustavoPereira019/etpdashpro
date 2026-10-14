@@ -1,5 +1,5 @@
-import { forwardRef } from "react";
-import { RESOLUCOES, type Aparencia, type Pagina, type Resolucao, type Visual } from "@/lib/briefing-store";
+import { forwardRef, useRef, useCallback } from "react";
+import { RESOLUCOES, type Aparencia, type Pagina, type Resolucao, type Visual, useBriefing, MAX_VISUAL_W, MAX_VISUAL_H, MIN_VISUAL_W, MIN_VISUAL_H } from "@/lib/briefing-store";
 
 // NOTE: the canvas mirrors the CLIENT's chosen palette (user data), so inline styles
 // from their hex values are intentional — this is a mockup, not app chrome.
@@ -13,6 +13,7 @@ interface Props {
 }
 
 const radiusPx = { reto: 0, medio: 8, arredondado: 18 } as const;
+const ROW_BASE = 130; // grid-auto-rows base height in px
 
 function mix(hex: string, alpha: number) {
   const h = hex.replace("#", "");
@@ -110,36 +111,159 @@ export const DashboardCanvas = forwardRef<HTMLDivElement, Props>(function Dashbo
   );
 });
 
-function gridStyle(p: Pagina, resolucao: Resolucao, lateral: boolean): React.CSSProperties {
-  const n = p.visuais.length;
-  const cols = p.gridPreset === "custom" ? Math.max(1, n <= 2 ? n : n <= 4 ? 2 : 3) : 2;
-  const rows = p.gridPreset === "1+2" ? 2 : Math.max(1, Math.ceil(n / cols));
-  const dim = RESOLUCOES[resolucao];
-  const available = dim.h - 112 - (!lateral && p.kpis.length ? 136 : 0);
-  const rowHeight = Math.min(resolucao === "longo" ? 340 : 300, Math.max(150, (available - (rows - 1) * 20) / rows));
-  return {
-    width: "100%", maxWidth: cols * 620 + (cols - 1) * 20,
-    gridTemplateColumns: p.gridPreset === "1+2" ? "minmax(0,1.6fr) minmax(0,1fr)" : `repeat(${cols}, minmax(0,1fr))`,
-    gridAutoRows: rowHeight,
-  };
+function VisualGrid({ pagina, card, aparencia, sub, line, resolucao, lateral }: { pagina: Pagina; card: React.CSSProperties; aparencia: Aparencia; sub: string; line: string; resolucao: Resolucao; lateral: boolean }) {
+  // Fluid 12-column CSS Grid. grid-auto-rows gives each row a base height;
+  // each visual spans w columns and h rows via inline grid styles.
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
+        gridAutoRows: `${ROW_BASE}px`,
+        gap: 20,
+        width: "100%",
+        minWidth: 0,
+        alignContent: "start",
+      }}
+    >
+      {pagina.visuais.map((v, i) => (
+        <VisualCard
+          key={v.id}
+          v={v}
+          index={i}
+          paginaId={pagina.id}
+          card={card}
+          aparencia={aparencia}
+          sub={sub}
+          line={line}
+        />
+      ))}
+    </div>
+  );
 }
 
-function VisualGrid({ pagina, card, aparencia, sub, line, resolucao, lateral }: { pagina: Pagina; card: React.CSSProperties; aparencia: Aparencia; sub: string; line: string; resolucao: Resolucao; lateral: boolean }) {
+function VisualCard({ v, index, paginaId, card, aparencia, sub, line }: {
+  v: Visual;
+  index: number;
+  paginaId: string;
+  card: React.CSSProperties;
+  aparencia: Aparencia;
+  sub: string;
+  line: string;
+}) {
+  const resizeVisual = useBriefing((s) => s.resizeVisual);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = { startX: e.clientX, startY: e.clientY, startW: v.w, startH: v.h };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }, [v.w, v.h]);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const COL_W = 90;
+    const ROW_H = ROW_BASE + 20;
+    const dw = Math.round((e.clientX - d.startX) / COL_W);
+    const dh = Math.round((e.clientY - d.startY) / ROW_H);
+    resizeVisual(paginaId, v.id, d.startW + dw, d.startH + dh);
+  }, [paginaId, v.id, resizeVisual]);
+
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
+    dragRef.current = null;
+    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+  }, []);
+
+  // Discrete +/- controls as an alternative/complement to the drag handle
+  const adjustW = (delta: number) => resizeVisual(paginaId, v.id, v.w + delta, v.h);
+  const adjustH = (delta: number) => resizeVisual(paginaId, v.id, v.w, v.h + delta);
+
   return (
-    <div style={{ display: "grid", gap: 20, minWidth: 0, ...gridStyle(pagina, resolucao, lateral) }}>
-      {pagina.visuais.map((v, i) => (
-        <div
-          key={v.id}
-          data-dashboard-visual
-          style={{ ...card, padding: 18, display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, gridRow: pagina.gridPreset === "1+2" && i === 0 ? "span 2" : undefined }}
-        >
-          <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", flexShrink: 0 }} title={v.titulo}>{v.titulo || `Visual ${i + 1}`}</div>
-          {v.descricao && <div style={{ fontSize: 11, color: sub, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.descricao}</div>}
-          <div style={{ flex: 1, minHeight: 0, marginTop: 12 }}>
-            <ChartMock v={v} p={aparencia.primaria} s={aparencia.secundaria} line={line} sub={sub} />
-          </div>
+    <div
+      ref={cardRef}
+      data-dashboard-visual
+      style={{
+        ...card,
+        gridColumn: `span ${Math.min(MAX_VISUAL_W, Math.max(MIN_VISUAL_W, v.w))}`,
+        gridRow: `span ${Math.min(MAX_VISUAL_H, Math.max(MIN_VISUAL_H, v.h))}`,
+        padding: 18,
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        minWidth: 0,
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      {/* Header with resize controls */}
+      <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", flex: 1 }} title={v.titulo}>
+          {v.titulo || `Visual ${index + 1}`}
         </div>
-      ))}
+        {/* Discrete width / height steppers */}
+        <div className="flex items-center gap-1" style={{ opacity: 0.6 }}>
+          <Stepper label="L" value={v.w} min={MIN_VISUAL_W} max={MAX_VISUAL_W} onDec={() => adjustW(-1)} onInc={() => adjustW(1)} />
+          <Stepper label="A" value={v.h} min={MIN_VISUAL_H} max={MAX_VISUAL_H} onDec={() => adjustH(-1)} onInc={() => adjustH(1)} />
+        </div>
+      </div>
+      {v.descricao && <div style={{ fontSize: 11, color: sub, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 0 }}>{v.descricao}</div>}
+
+      {/* Chart area: 100% w/h to adapt to new card size */}
+      <div style={{ flex: 1, minHeight: 0, marginTop: 12 }}>
+        <ChartMock v={v} p={aparencia.primaria} s={aparencia.secundaria} line={line} sub={sub} />
+      </div>
+
+      {/* Drag resize handle (bottom-right) */}
+      <div
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        style={{
+          position: "absolute",
+          right: 0,
+          bottom: 0,
+          width: 20,
+          height: 20,
+          cursor: "nwse-resize",
+          touchAction: "none",
+          zIndex: 10,
+        }}
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" style={{ opacity: 0.4 }}>
+          <path d="M14 18 L18 14 M10 18 L18 10 M6 18 L18 6" stroke="currentColor" strokeWidth="1.5" fill="none" />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function Stepper({ label, value, min, max, onDec, onInc }: { label: string; value: number; min: number; max: number; onDec: () => void; onInc: () => void }) {
+  return (
+    <div className="flex items-center gap-0.5" style={{ fontSize: 10 }}>
+      <span style={{ fontWeight: 700, opacity: 0.5 }}>{label}</span>
+      <button
+        onClick={(e) => { e.stopPropagation(); onDec(); }}
+        disabled={value <= min}
+        style={{
+          width: 18, height: 18, borderRadius: 4, border: "1px solid rgba(128,128,128,0.2)", background: "transparent",
+          color: "inherit", cursor: value <= min ? "not-allowed" : "pointer", opacity: value <= min ? 0.3 : 1,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, lineHeight: 1, padding: 0,
+        }}
+      >−</button>
+      <span style={{ minWidth: 14, textAlign: "center", fontWeight: 600 }}>{value}</span>
+      <button
+        onClick={(e) => { e.stopPropagation(); onInc(); }}
+        disabled={value >= max}
+        style={{
+          width: 18, height: 18, borderRadius: 4, border: "1px solid rgba(128,128,128,0.2)", background: "transparent",
+          color: "inherit", cursor: value >= max ? "not-allowed" : "pointer", opacity: value >= max ? 0.3 : 1,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, lineHeight: 1, padding: 0,
+        }}
+      >+</button>
     </div>
   );
 }

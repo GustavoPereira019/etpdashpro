@@ -36,8 +36,14 @@ export function buildSpec(p: BriefingPayload) {
 /** Saves the request. Returns "cloud" when persisted, "local" when the backend was unreachable (mock fallback). */
 export async function submitBriefing(p: BriefingPayload): Promise<"cloud" | "local"> {
   const id = crypto.randomUUID();
-  const spec = buildSpec(p);
+  const spec = buildSpec(p) as ReturnType<typeof buildSpec> & { arquivo_path?: string | null };
   try {
+    const f = p.contato.arquivoExemplo;
+    if (f) {
+      const path = `${id}/${f.name.replace(/[^\w.\-]/g, "_")}`;
+      const { error: up } = await supabase.storage.from("exemplos").upload(path, f);
+      spec.arquivo_path = up ? null : path;
+    }
     const { error } = await supabase.from("solicitacoes_orcamento").insert({
       id,
       cliente_nome: p.contato.nome,

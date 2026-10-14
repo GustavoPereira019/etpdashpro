@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { AlertTriangle, Code2, Database, LogOut, Mail, Phone, RefreshCw } from "lucide-react";
+import { AlertTriangle, Code2, Database, Download, LogOut, Mail, Phone, RefreshCw, Building2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,24 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VISUAL_LABELS, type VisualTipo } from "@/lib/briefing-store";
-import { MOCK_SOLICITACOES, STATUS, type Solicitacao } from "@/lib/mock-solicitacoes";
+
+const ADMIN_EMAIL = "gustavopereiraaxcursos@gmail.com";
+const STATUS = ["Pendente", "Em Analise", "Orcamento Enviado", "Aprovado", "Recusado"] as const;
+
+interface Elemento { id: string; tipo_elemento: string; posicao_index: number; titulo: string | null; descricao_informacoes: string | null; detalhes_custom_html: string | null }
+interface Tela { id: string; nome_tela: string; ordem: number; posicao_cards: string; qtd_cards: number; solicitacao_elementos: Elemento[] }
+interface Config {
+  menu_posicao?: string;
+  filtros?: { quais?: string; quantidade?: number; estilo?: string };
+  solicitante?: { arquivo_exemplo?: string | null };
+  arquivo_path?: string | null;
+  paginas?: { visuais?: { alternancia?: boolean }[] }[];
+}
+interface Solicitacao {
+  id: string; cliente_nome: string; cliente_email: string; cliente_telefone: string | null; empresa: string | null;
+  fonte_dados: string | null; volume_dados: string | null; objetivo: string | null; resolucao_painel: string; tema: string;
+  status: string; observacoes_tecnicas: string | null; created_at: string; configuracao: Config | null; solicitacao_telas: Tela[];
+}
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -30,30 +47,45 @@ export const Route = createFileRoute("/admin")({
 });
 
 const statusLabel = (s: string) => ({ "Em Analise": "Em análise", "Orcamento Enviado": "Orçamento enviado" })[s] ?? s;
-const temCustom = (s: Solicitacao) => s.solicitacao_telas.some((t) => t.solicitacao_elementos.some((e) => e.tipo_elemento === "Custom_HTML"));
+const visuais = (s: Solicitacao) => s.solicitacao_telas.flatMap((t) => t.solicitacao_elementos.filter((e) => e.tipo_elemento !== "KPI"));
+const temCustom = (s: Solicitacao) => visuais(s).some((e) => e.tipo_elemento === "Custom_HTML" || e.tipo_elemento === "Outro");
+const temAlternancia = (s: Solicitacao) => !!s.configuracao?.paginas?.some((p) => p.visuais?.some((v) => v.alternancia));
+
+/** Sugestão algorítmica de preço. */
+function sugerirPreco(s: Solicitacao) {
+  const vs = visuais(s);
+  const simples = vs.filter((e) => e.tipo_elemento !== "Custom_HTML" && e.tipo_elemento !== "Outro").length;
+  return 500 + 100 * s.solicitacao_telas.length + 50 * simples + (temCustom(s) ? 200 : 0) + (temAlternancia(s) ? 100 : 0);
+}
+const brl = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
-  const [demo, setDemo] = useState(false);
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setReady(true);
-    });
+    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
     return () => data.subscription.unsubscribe();
   }, []);
 
   if (!ready) return null;
-  if (demo) return <Painel modo="demo" onSair={() => setDemo(false)} />;
-  if (!session) return <Login onDemo={() => setDemo(true)} />;
-  return <Painel modo="cloud" onSair={() => supabase.auth.signOut()} />;
+  if (!session) return <Login />;
+  if (session.user.email?.toLowerCase() !== ADMIN_EMAIL) return <SemPermissao />;
+  return <Painel />;
 }
 
-function Login({ onDemo }: { onDemo: () => void }) {
-  const [modo, setModo] = useState<"entrar" | "criar">("entrar");
+function SemPermissao() {
+  return (
+    <div className="mx-auto max-w-md px-6 py-20 text-center">
+      <h1 className="text-xl font-bold">Sem permissão</h1>
+      <p className="mt-2 text-sm text-muted-foreground">Esta conta não tem acesso ao painel.</p>
+      <Button variant="outline" className="mt-6" onClick={() => supabase.auth.signOut()}><LogOut /> Sair</Button>
+    </div>
+  );
+}
+
+function Login() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [loading, setLoading] = useState(false);
@@ -61,13 +93,9 @@ function Login({ onDemo }: { onDemo: () => void }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } =
-      modo === "entrar"
-        ? await supabase.auth.signInWithPassword({ email, password: senha })
-        : await supabase.auth.signUp({ email, password: senha, options: { emailRedirectTo: `${window.location.origin}/admin` } });
+    const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
     setLoading(false);
-    if (error) { toast.error(error.message); return; }
-    if (modo === "criar") toast.success("Conta criada. Confirme pelo link enviado ao seu e-mail.");
+    if (error) toast.error("E-mail ou senha inválidos.");
   };
 
   return (
@@ -75,33 +103,20 @@ function Login({ onDemo }: { onDemo: () => void }) {
       <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-2xl border border-border bg-card p-8">
         <h1 className="text-2xl font-bold">Acesso administrativo</h1>
         <div className="space-y-2"><Label>E-mail</Label><Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-        <div className="space-y-2"><Label>Senha</Label><Input type="password" required minLength={6} value={senha} onChange={(e) => setSenha(e.target.value)} /></div>
-        <Button className="w-full" disabled={loading}>{modo === "entrar" ? "Entrar" : "Criar conta"}</Button>
-        <button type="button" className="w-full text-sm text-muted-foreground hover:text-foreground" onClick={() => setModo(modo === "entrar" ? "criar" : "entrar")}>
-          {modo === "entrar" ? "Primeiro acesso? Criar conta" : "Já tenho conta"}
-        </button>
-        <Button type="button" variant="outline" className="w-full" onClick={onDemo}>Ver demonstração com dados fictícios</Button>
+        <div className="space-y-2"><Label>Senha</Label><Input type="password" required value={senha} onChange={(e) => setSenha(e.target.value)} /></div>
+        <Button className="w-full" disabled={loading}>Entrar</Button>
       </form>
     </div>
   );
 }
 
-function Painel({ modo, onSair }: { modo: "cloud" | "demo"; onSair: () => void }) {
-  const [rows, setRows] = useState<Solicitacao[]>(modo === "demo" ? MOCK_SOLICITACOES : []);
-  const [loading, setLoading] = useState(modo === "cloud");
-  const [semAcesso, setSemAcesso] = useState(false);
+function Painel() {
+  const [rows, setRows] = useState<Solicitacao[]>([]);
+  const [loading, setLoading] = useState(true);
   const [sel, setSel] = useState<Solicitacao | null>(null);
 
   const carregar = useCallback(async () => {
-    if (modo === "demo") return;
     setLoading(true);
-    const { data: u } = await supabase.auth.getUser();
-    const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", u.user?.id ?? "");
-    if (!roles?.some((r) => r.role === "admin")) {
-      setSemAcesso(true);
-      setLoading(false);
-      return;
-    }
     const { data, error } = await supabase
       .from("solicitacoes_orcamento")
       .select("*, solicitacao_telas(*, solicitacao_elementos(*))")
@@ -109,43 +124,38 @@ function Painel({ modo, onSair }: { modo: "cloud" | "demo"; onSair: () => void }
     setLoading(false);
     if (error) { toast.error("Erro ao carregar solicitações."); return; }
     setRows((data ?? []) as unknown as Solicitacao[]);
-  }, [modo]);
+  }, []);
 
   useEffect(() => { carregar(); }, [carregar]);
 
   const mudarStatus = async (id: string, status: string) => {
-    if (modo === "cloud") {
-      const { error } = await supabase.from("solicitacoes_orcamento").update({ status }).eq("id", id);
-      if (error) { toast.error("Não foi possível atualizar."); return; }
-    }
+    const { error } = await supabase.from("solicitacoes_orcamento").update({ status }).eq("id", id);
+    if (error) { toast.error("Não foi possível atualizar."); return; }
     setRows((r) => r.map((x) => (x.id === id ? { ...x, status } : x)));
     setSel((s) => (s && s.id === id ? { ...s, status } : s));
     toast.success(`Status: ${statusLabel(status)}`);
   };
 
-  if (semAcesso)
-    return (
-      <div className="mx-auto max-w-md px-6 py-20 text-center">
-        <h1 className="text-xl font-bold">Sem permissão de administrador</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Esta conta não tem acesso ao painel.</p>
-        <Button variant="outline" className="mt-6" onClick={onSair}><LogOut /> Sair</Button>
-      </div>
-    );
+  const baixar = async (path: string) => {
+    const { data, error } = await supabase.storage.from("exemplos").createSignedUrl(path, 300, { download: true });
+    if (error || !data) { toast.error("Arquivo indisponível."); return; }
+    window.open(data.signedUrl, "_blank");
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-10">
       <div className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         <div className="min-w-0">
           <h1 className="truncate text-3xl font-bold">Solicitações</h1>
-          <p className="text-sm text-muted-foreground">{modo === "demo" ? "Modo demonstração · dados fictícios" : `${rows.length} recebidas`}</p>
+          <p className="text-sm text-muted-foreground">{rows.length} recebidas</p>
         </div>
         <div className="flex gap-2">
-          {modo === "cloud" && <Button variant="outline" size="sm" onClick={carregar}><RefreshCw /> Atualizar</Button>}
-          <Button variant="ghost" size="sm" onClick={onSair}><LogOut /> Sair</Button>
+          <Button variant="outline" size="sm" onClick={carregar}><RefreshCw /> Atualizar</Button>
+          <Button variant="ghost" size="sm" onClick={() => supabase.auth.signOut()}><LogOut /> Sair</Button>
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-5 mb-6">
+      <div className="mb-6 grid gap-3 sm:grid-cols-5">
         {STATUS.map((st) => (
           <div key={st} className="rounded-xl border border-border bg-card p-4">
             <div className="text-xs text-muted-foreground">{statusLabel(st)}</div>
@@ -160,8 +170,8 @@ function Painel({ modo, onSair }: { modo: "cloud" | "demo"; onSair: () => void }
             <TableRow>
               <TableHead>Cliente</TableHead>
               <TableHead>Empresa</TableHead>
-              <TableHead className="hidden md:table-cell">Fontes</TableHead>
               <TableHead className="hidden md:table-cell">Telas</TableHead>
+              <TableHead className="hidden md:table-cell">Sugestão</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="hidden sm:table-cell">Data</TableHead>
             </TableRow>
@@ -179,8 +189,8 @@ function Painel({ modo, onSair }: { modo: "cloud" | "demo"; onSair: () => void }
                   <div className="text-xs text-muted-foreground">{r.cliente_email}</div>
                 </TableCell>
                 <TableCell>{r.empresa}</TableCell>
-                <TableCell className="hidden max-w-[200px] truncate md:table-cell">{r.fonte_dados}</TableCell>
                 <TableCell className="hidden md:table-cell">{r.solicitacao_telas.length}</TableCell>
+                <TableCell className="hidden font-medium text-success md:table-cell">{brl(sugerirPreco(r))}</TableCell>
                 <TableCell><StatusBadge s={r.status} /></TableCell>
                 <TableCell className="hidden text-muted-foreground sm:table-cell">{new Date(r.created_at).toLocaleDateString("pt-BR")}</TableCell>
               </TableRow>
@@ -190,71 +200,115 @@ function Painel({ modo, onSair }: { modo: "cloud" | "demo"; onSair: () => void }
       </div>
 
       <Sheet open={!!sel} onOpenChange={(o) => !o && setSel(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
-          {sel && (
-            <>
-              <SheetHeader>
-                <SheetTitle>{sel.empresa || sel.cliente_nome}</SheetTitle>
-                <SheetDescription>Recebido em {new Date(sel.created_at).toLocaleString("pt-BR")}</SheetDescription>
-              </SheetHeader>
-              <div className="space-y-6 px-4 pb-8">
-                <Select value={sel.status} onValueChange={(v) => mudarStatus(sel.id, v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{STATUS.map((st) => <SelectItem key={st} value={st}>{statusLabel(st)}</SelectItem>)}</SelectContent>
-                </Select>
-
-                {temCustom(sel) && (
-                  <div className="flex gap-3 rounded-xl border border-warning/50 bg-warning/10 p-4 text-sm">
-                    <AlertTriangle className="h-5 w-5 shrink-0 text-warning" />
-                    <div><b className="text-warning">Gráfico personalizado (HTML/Deneb/D3) solicitado.</b><p className="text-muted-foreground">Agendar reunião técnica para refinar escopo.</p></div>
-                  </div>
-                )}
-
-                <Bloco titulo="Contato">
-                  <p className="font-medium">{sel.cliente_nome}</p>
-                  <p className="flex items-center gap-2 text-sm text-muted-foreground"><Mail className="h-3.5 w-3.5" />{sel.cliente_email}</p>
-                  {sel.cliente_telefone && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Phone className="h-3.5 w-3.5" />{sel.cliente_telefone}</p>}
-                </Bloco>
-
-                <Bloco titulo="Infraestrutura">
-                  <p className="flex items-center gap-2 text-sm"><Database className="h-3.5 w-3.5 text-primary" />{sel.fonte_dados || "—"}</p>
-                  <p className="text-sm text-muted-foreground">Volume: {sel.volume_dados || "—"}</p>
-                  <p className="text-sm text-muted-foreground">Resolução: {sel.resolucao_painel} · Tema: {sel.tema}</p>
-                  {sel.objetivo && <p className="text-sm">{sel.objetivo}</p>}
-                  {sel.observacoes_tecnicas && <p className="text-sm italic text-muted-foreground">“{sel.observacoes_tecnicas}”</p>}
-                </Bloco>
-
-                <Bloco titulo={`Telas (${sel.solicitacao_telas.length})`}>
-                  <div className="space-y-3">
-                    {[...sel.solicitacao_telas].sort((a, b) => a.ordem - b.ordem).map((t) => {
-                      const kpis = t.solicitacao_elementos.filter((e) => e.tipo_elemento === "KPI");
-                      const vis = t.solicitacao_elementos.filter((e) => e.tipo_elemento !== "KPI").sort((a, b) => a.posicao_index - b.posicao_index);
-                      return (
-                        <div key={t.id} className="rounded-lg border border-border p-3">
-                          <div className="flex items-center justify-between"><b>{t.nome_tela}</b><span className="text-xs text-muted-foreground">{t.qtd_cards} KPIs · {t.posicao_cards}</span></div>
-                          {kpis.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{kpis.map((k) => <Badge key={k.id} variant="secondary">{k.titulo}</Badge>)}</div>}
-                          <ul className="mt-3 space-y-2">
-                            {vis.map((v) => (
-                              <li key={v.id} className="text-sm">
-                                <span className={v.tipo_elemento === "Custom_HTML" ? "text-warning" : "text-primary"}>{VISUAL_LABELS[v.tipo_elemento as VisualTipo] ?? v.tipo_elemento}</span>
-                                {" — "}{v.titulo || "Sem título"}
-                                {v.descricao_informacoes && <p className="text-xs text-muted-foreground">{v.descricao_informacoes}</p>}
-                                {v.detalhes_custom_html && <p className="mt-1 rounded bg-muted p-2 text-xs">{v.detalhes_custom_html}</p>}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Bloco>
-              </div>
-            </>
-          )}
+        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
+          {sel && <Detalhe s={sel} onStatus={mudarStatus} onBaixar={baixar} />}
         </SheetContent>
       </Sheet>
     </div>
   );
+}
+
+function Detalhe({ s, onStatus, onBaixar }: { s: Solicitacao; onStatus: (id: string, v: string) => void; onBaixar: (p: string) => void }) {
+  const cfg = s.configuracao ?? {};
+  const f = cfg.filtros ?? {};
+  const vs = visuais(s);
+  const nCustom = vs.filter((e) => e.tipo_elemento === "Custom_HTML" || e.tipo_elemento === "Outro").length;
+  const whats = (s.cliente_telefone ?? "").replace(/\D/g, "");
+  return (
+    <>
+      <SheetHeader>
+        <SheetTitle>{s.empresa || s.cliente_nome}</SheetTitle>
+        <SheetDescription>Recebido em {new Date(s.created_at).toLocaleString("pt-BR")}</SheetDescription>
+      </SheetHeader>
+      <div className="space-y-6 px-4 pb-8">
+        <div className="rounded-xl border border-success/50 bg-success/10 p-4">
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-success"><Sparkles className="h-3.5 w-3.5" /> Sugestão algorítmica</div>
+          <div className="mt-1 font-display text-3xl font-bold text-success">Sugestão de Preço: {brl(sugerirPreco(s))}</div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Base R$ 500 + {s.solicitacao_telas.length} página(s) × R$ 100 + {vs.length - nCustom} gráfico(s) × R$ 50
+            {nCustom > 0 && " + R$ 200 (personalizado/outro)"}{temAlternancia(s) && " + R$ 100 (alternância)"}.
+            Valor apenas indicativo — o orçamento oficial será enviado por WhatsApp/e-mail ao cliente.
+          </p>
+        </div>
+
+        <Select value={s.status} onValueChange={(v) => onStatus(s.id, v)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>{STATUS.map((st) => <SelectItem key={st} value={st}>{statusLabel(st)}</SelectItem>)}</SelectContent>
+        </Select>
+
+        {temCustom(s) && (
+          <div className="flex gap-3 rounded-xl border border-warning/50 bg-warning/10 p-4 text-sm">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-warning" />
+            <div><b className="text-warning">Gráfico personalizado ou "Outro" solicitado.</b><p className="text-muted-foreground">Agendar reunião técnica para refinar escopo.</p></div>
+          </div>
+        )}
+
+        <Bloco titulo="Lead">
+          <p className="font-medium">{s.cliente_nome}</p>
+          {s.empresa && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Building2 className="h-3.5 w-3.5" />{s.empresa}</p>}
+          <a href={`mailto:${s.cliente_email}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><Mail className="h-3.5 w-3.5" />{s.cliente_email}</a>
+          {whats && <a href={`https://wa.me/55${whats}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><Phone className="h-3.5 w-3.5" />{s.cliente_telefone} (WhatsApp)</a>}
+        </Bloco>
+
+        <Bloco titulo="Arquivo de exemplo">
+          {cfg.arquivo_path ? (
+            <Button variant="outline" size="sm" onClick={() => onBaixar(cfg.arquivo_path!)}><Download /> Baixar {cfg.solicitante?.arquivo_exemplo ?? "arquivo"}</Button>
+          ) : <p className="text-sm text-muted-foreground">{cfg.solicitante?.arquivo_exemplo ? `${cfg.solicitante.arquivo_exemplo} (não foi possível enviar)` : "Nenhum arquivo enviado."}</p>}
+        </Bloco>
+
+        <Bloco titulo="Infraestrutura">
+          <p className="flex items-center gap-2 text-sm"><Database className="h-3.5 w-3.5 text-primary" />{s.fonte_dados || "—"}</p>
+          <p className="text-sm text-muted-foreground">Volume: {s.volume_dados || "—"}</p>
+          {s.objetivo && <p className="whitespace-pre-wrap text-sm">{s.objetivo}</p>}
+        </Bloco>
+
+        <Bloco titulo="Configurações">
+          <dl className="grid grid-cols-2 gap-2 text-sm">
+            <Item k="Resolução" v={s.resolucao_painel} />
+            <Item k="Tema" v={s.tema} />
+            <Item k="Menu" v={cfg.menu_posicao === "lateral_direita" ? "Lateral direita" : cfg.menu_posicao === "topo" ? "Topo" : "—"} />
+            <Item k="Filtros" v={f.estilo ? `${f.estilo === "ocultos" ? "Ocultos" : "Exibidos"} · ${f.quantidade ?? 0}` : "—"} />
+            <Item k="Alternância de gráficos" v={temAlternancia(s) ? "Sim" : "Não"} />
+          </dl>
+          {f.quais && <p className="mt-2 text-sm text-muted-foreground">Quais filtros: {f.quais}</p>}
+        </Bloco>
+
+        <Bloco titulo={`Páginas (${s.solicitacao_telas.length})`}>
+          <div className="space-y-3">
+            {[...s.solicitacao_telas].sort((a, b) => a.ordem - b.ordem).map((t, i) => {
+              const kpis = t.solicitacao_elementos.filter((e) => e.tipo_elemento === "KPI").sort((a, b) => a.posicao_index - b.posicao_index);
+              const vis = t.solicitacao_elementos.filter((e) => e.tipo_elemento !== "KPI").sort((a, b) => a.posicao_index - b.posicao_index);
+              return (
+                <div key={t.id} className="rounded-lg border border-border p-3">
+                  <div className="flex items-center justify-between gap-2"><b>{i + 1}. {t.nome_tela}</b><span className="text-xs text-muted-foreground">{t.qtd_cards} cards · {t.posicao_cards}</span></div>
+                  {kpis.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{kpis.map((k) => <Badge key={k.id} variant="secondary">{k.titulo}</Badge>)}</div>}
+                  <ol className="mt-3 space-y-3">
+                    {vis.map((v, j) => (
+                      <li key={v.id} className="border-l-2 border-border pl-3 text-sm">
+                        <span className={v.tipo_elemento === "Custom_HTML" || v.tipo_elemento === "Outro" ? "text-warning" : "text-primary"}>{j + 1}. {VISUAL_LABELS[v.tipo_elemento as VisualTipo] ?? v.tipo_elemento}</span>
+                        {" — "}<b>{v.titulo || "Sem título"}</b>
+                        <p className="whitespace-pre-wrap text-xs text-muted-foreground">{v.descricao_informacoes || "Sem descrição."}</p>
+                        {v.detalhes_custom_html && <p className="mt-1 whitespace-pre-wrap rounded bg-muted p-2 text-xs">{v.detalhes_custom_html}</p>}
+                      </li>
+                    ))}
+                    {vis.length === 0 && <li className="text-xs text-muted-foreground">Nenhum gráfico.</li>}
+                  </ol>
+                </div>
+              );
+            })}
+          </div>
+        </Bloco>
+
+        <Bloco titulo="Observação final">
+          <p className="whitespace-pre-wrap text-sm">{s.observacoes_tecnicas || "—"}</p>
+        </Bloco>
+      </div>
+    </>
+  );
+}
+
+function Item({ k, v }: { k: string; v: string }) {
+  return <div className="rounded-md bg-muted/50 p-2"><dt className="text-xs text-muted-foreground">{k}</dt><dd className="font-medium">{v}</dd></div>;
 }
 
 function Bloco({ titulo, children }: { titulo: string; children: React.ReactNode }) {
